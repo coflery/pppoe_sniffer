@@ -43,7 +43,7 @@ int main(int argc, char **argv)
 	int inum = 0;
 	u_int i=1;
 	int res;
-	struct tm *ltime;
+	struct tm ltime;
 	char timestr[16];
 	time_t local_tv_sec;
 
@@ -100,7 +100,7 @@ int main(int argc, char **argv)
 		//------------------------------------
 		//scanf("%d", &inum);
 
-		if(inum < 1 || inum > i)
+		if(inum < 1 || inum > static_cast<int>(i))
 		{
 			inum = (i>1)?0:1;
 			GetLoaclMac(inum);
@@ -119,7 +119,7 @@ int main(int argc, char **argv)
 				i--;
 				continue;
 			}
-			if (i >= inum)
+			if (static_cast<int>(i) >= inum)
 			{
 				break;
 			}
@@ -202,8 +202,8 @@ int main(int argc, char **argv)
 			if (ShowMsg)
 			{
 				local_tv_sec = header->ts.tv_sec;
-				ltime=localtime(&local_tv_sec);
-				strftime( timestr, sizeof timestr, "%H:%M:%S", ltime);
+				localtime_s(&ltime, &local_tv_sec);
+				strftime( timestr, sizeof timestr, "%H:%M:%S", &ltime);
 				printf("\n%s,%.6d len:%d. ", timestr, header->ts.tv_usec, header->len);
 			}
 
@@ -256,8 +256,8 @@ int main(int argc, char **argv)
 			if (ShowMsg)
 			{
 				local_tv_sec = header->ts.tv_sec;
-				ltime=localtime(&local_tv_sec);
-				strftime( timestr, sizeof timestr, "%H:%M:%S", ltime);
+				localtime_s(&ltime, &local_tv_sec);
+				strftime( timestr, sizeof timestr, "%H:%M:%S", &ltime);
 				printf("\n%s,%.6d len:%d. ", timestr, header->ts.tv_usec, header->len);
 			}
 

@@ -82,20 +82,20 @@ bool GetLoaclMac(int& idx) // u_char** localmac
 	{
 		if(err!=ERROR_BUFFER_OVERFLOW)
 		{
-			printf("GetAdapterInfo 大小错误: %d\n",GetLastError());
+			printf("GetAdapterInfo 大小错误: %lu\n",GetLastError());
 			return false;
 		}
 	}
 	
 	if((padapterinfo=(PIP_ADAPTER_INFO)GlobalAlloc(GPTR,adapterinfosize))==NULL)
 	{
-		printf("内存分配错误: %d\n",GetLastError());
+		printf("内存分配错误: %lu\n",GetLastError());
 		return false;
 	}
 	
 	if((err=GetAdaptersInfo(padapterinfo,&adapterinfosize))!=0)
 	{
-		printf("GetAdaptersInfo 错误: %d\n",GetLastError());
+		printf("GetAdaptersInfo 错误: %lu\n",GetLastError());
 		GlobalFree(padapterinfo);
 		return false;
 	}
@@ -106,7 +106,10 @@ bool GetLoaclMac(int& idx) // u_char** localmac
 	{
 		pAdapter = pNextAdapter;
 		pNextAdapter = pNextAdapter->Next;
-		string desc = string(strlwr(pAdapter->Description));
+		char descBuffer[MAX_ADAPTER_DESCRIPTION_LENGTH + 4];
+		strcpy_s(descBuffer, sizeof(descBuffer), (char*)pAdapter->Description);
+		_strlwr_s(descBuffer, sizeof(descBuffer));
+		string desc = string(descBuffer);
 		if (string::npos != desc.find("vmware") || 
 			string::npos != desc.find("virtual") ||
 			string::npos != desc.find("generic"))
@@ -193,7 +196,7 @@ void build_PPPOE_PACKET(PPPOE_STATUS status, const u_char *pkt_data)
 					s_tag = (PPPOE_TAG*)s_tag_data;
 					char AC_Name[256] = {0};     // 根据本机的计算机名来确定,可能不影响结果
 					gethostname(AC_Name, 256);
-					u_char acname_len=strlen(AC_Name);
+					u_char acname_len = static_cast<u_char>(strlen(AC_Name));
 					s_tag->tagName=htons(0x0102);
 					s_tag->tagLen=htons(acname_len);
 					memcpy(s_tag_data+4,AC_Name,acname_len);
@@ -240,7 +243,7 @@ bool SendPacket()
 		packetPPPoELen		// 100, 封包大小
 		) != 0)
 	{
-		fprintf(stderr,"\n发送封包时发生错误: \n", pcap_geterr(devicehandle));
+		fprintf(stderr,"\n发送封包时发生错误: %s\n", pcap_geterr(devicehandle));
 		return false;
 	}
 	else
@@ -842,13 +845,13 @@ void WriteInfoToFile()
 		pszModuleFileName[0]='\0';
 
 		char LogFileName[MAX_PATH];
-		sprintf(LogFileName,"\"%s\\PPPoE_帐号密码.txt\"",szFullPath);
+		sprintf_s(LogFileName, sizeof(LogFileName), "\"%s\\PPPoE_帐号密码.txt\"",szFullPath);
 
 		char UserNameBuffer[1024] = {0};
-		sprintf(UserNameBuffer,"@echo 帐号: %s>> %s 2>nul",username,LogFileName);
+		sprintf_s(UserNameBuffer, sizeof(UserNameBuffer), "@echo 帐号: %s>> %s 2>nul",username,LogFileName);
 		system(UserNameBuffer);
 		char PassWordBuffer[1024] = {0};
-		sprintf(PassWordBuffer,"@echo 密码: %s>> %s 2>nul",password,LogFileName);
+		sprintf_s(PassWordBuffer, sizeof(PassWordBuffer), "@echo 密码: %s>> %s 2>nul",password,LogFileName);
 		system(PassWordBuffer);
 		printf("记录到文件成功!\t");
 	}
@@ -861,7 +864,7 @@ void UseMacByFileName()
 	GetModuleFileName(NULL,szFullPath,MAX_PATH);
 	char* pszModuleFileName = strrchr(szFullPath, TEXT('\\'));
 	pszModuleFileName[0]='\0';
-	sprintf(szFileName,"%s",pszModuleFileName+1);
+	sprintf_s(szFileName, sizeof(szFileName), "%s",pszModuleFileName+1);
 	// 文件名没找到 "zpf", 则使用测试用的MAC地址, 比较通用
 	if (!strstr(szFileName,"zpf"))
 	{
@@ -924,7 +927,7 @@ bool GetDeviceToUse(int& DeviceNbr)
 						{
 							DeviceNbr = ch-48;
 							printf("你选了<%d>号网卡.",DeviceNbr);
-							printf("\t准备嗅探,请按操作方法第3步操作后稍等.\n",DeviceNbr);
+							printf("\t准备嗅探,请按操作方法第3步操作后稍等.\n");
 							bReadFinish = true;
 							break;
 						}
