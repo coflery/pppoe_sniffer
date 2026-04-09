@@ -1,0 +1,28 @@
+# 构建目录
+Debug/
+Release/
+
+# Visual Studio 用户特定文件
+*.vcxproj.user
+*.suo
+*.sdf
+*.opensdf
+*.VC.db
+.vs/
+
+# 编译生成的文件
+*.exe
+*.obj
+*.pdb
+*.ilk
+*.idb
+*.pch
+*.res
+
+# 构建日志和临时文件
+*.log
+*.tlog
+*.recipe
+*.FileListAbsolute.txt
+*.lastbuildstate
+*.Build.CppClean.log
