@@ -54,7 +54,7 @@ Adapter Desc:   VMware Virtual Ethernet Adapter for VMnet8
 Adapter Addr:   1347308
 IP Address:     192.168.72.1
 */
-bool GetLoaclMac(int& idx) // u_char** localmac
+bool GetLoaclMac(int& idx, const char* adapterName) // u_char** localmac
 {
 	// 只需调用一次
 	if (!FirstCallGetLoaclMac)
@@ -76,58 +76,64 @@ bool GetLoaclMac(int& idx) // u_char** localmac
 	DWORD             adapterinfosize=0;
 	PIP_ADAPTER_INFO	padapterinfo;
 	PIP_ADAPTER_INFO	pAdapter = NULL;
-	PIP_ADAPTER_INFO	pNextAdapter = NULL;
-	
-	if((err=GetAdaptersInfo(NULL,&adapterinfosize))!=0)
+
+	if((err=GetAdaptersInfo(NULL,&adapterinfosize))!=ERROR_BUFFER_OVERFLOW)
 	{
-		if(err!=ERROR_BUFFER_OVERFLOW)
-		{
-			printf("GetAdapterInfo 大小错误: %lu\n",GetLastError());
-			return false;
-		}
+		printf("GetAdapterInfo 错误: %lu\n",GetLastError());
+		return false;
 	}
-	
+
 	if((padapterinfo=(PIP_ADAPTER_INFO)GlobalAlloc(GPTR,adapterinfosize))==NULL)
 	{
 		printf("内存分配错误: %lu\n",GetLastError());
 		return false;
 	}
-	
+
 	if((err=GetAdaptersInfo(padapterinfo,&adapterinfosize))!=0)
 	{
 		printf("GetAdaptersInfo 错误: %lu\n",GetLastError());
 		GlobalFree(padapterinfo);
 		return false;
 	}
-	pNextAdapter = padapterinfo;
-	pAdapter = pNextAdapter;
-	bool FindRealAdapter = false;
-	for (int i = 1;pNextAdapter;i++)
+
+	// 如果提供了设备名,根据GUID匹配
+	if (adapterName != NULL && strlen(adapterName) > 0)
 	{
-		pAdapter = pNextAdapter;
-		pNextAdapter = pNextAdapter->Next;
-		char descBuffer[MAX_ADAPTER_DESCRIPTION_LENGTH + 4];
-		strcpy_s(descBuffer, sizeof(descBuffer), (char*)pAdapter->Description);
-		_strlwr_s(descBuffer, sizeof(descBuffer));
-		string desc = string(descBuffer);
-		if (string::npos != desc.find("vmware") || 
-			string::npos != desc.find("virtual") ||
-			string::npos != desc.find("generic"))
+		for (pAdapter = padapterinfo; pAdapter != NULL; pAdapter = pAdapter->Next)
 		{
-			continue;
-		}
-		if (idx == 0 || idx == i)
-		{
-			printf("找到可用网卡: \t%s\n", pAdapter->Description);
-			idx = i;
-			FindRealAdapter = true;
-			break;
+			if (strstr(adapterName, pAdapter->AdapterName) != NULL)
+			{
+				printf("找到可用网卡: \t%s\n", pAdapter->Description);
+				memcpy(hostmac, pAdapter->Address, 6);
+				break;
+			}
 		}
 	}
-
-	if (FindRealAdapter)
+	else
 	{
-		memcpy(hostmac,pAdapter->Address,6);
+		// 按索引查找(兼容旧逻辑)
+		int realIdx = 1;
+		for (pAdapter = padapterinfo; pAdapter != NULL; pAdapter = pAdapter->Next)
+		{
+			char descBuffer[MAX_ADAPTER_DESCRIPTION_LENGTH + 4];
+			strcpy_s(descBuffer, sizeof(descBuffer), (char*)pAdapter->Description);
+			_strlwr_s(descBuffer, sizeof(descBuffer));
+			string desc = string(descBuffer);
+			if (string::npos != desc.find("vmware") ||
+				string::npos != desc.find("virtual") ||
+				string::npos != desc.find("generic"))
+			{
+				continue;
+			}
+			if (idx == 0 || idx == realIdx)
+			{
+				printf("找到可用网卡: \t%s\n", pAdapter->Description);
+				memcpy(hostmac, pAdapter->Address, 6);
+				idx = realIdx;
+				break;
+			}
+			realIdx++;
+		}
 	}
 
 	GlobalFree(padapterinfo);

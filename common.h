@@ -126,7 +126,7 @@ typedef struct _LCP_OPT{
 //-------------------------------
 
 // 取得本地的MAC地址
-bool GetLoaclMac(int& idx);
+bool GetLoaclMac(int& idx, const char* adapterName = NULL);
 
 // 根据收到的封包,创建PPPOE封包
 void build_PPPOE_PACKET(PPPOE_STATUS status, const u_char *pkt_data);

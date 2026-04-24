@@ -100,17 +100,6 @@ int main(int argc, char **argv)
 		//------------------------------------
 		//scanf("%d", &inum);
 
-		if(inum < 1 || inum > static_cast<int>(i))
-		{
-			inum = (i>1)?0:1;
-			GetLoaclMac(inum);
-			printf("超出范围,本程序自动选了<%d>号网卡.如果长时间没反应,请重启程序后试其他网卡!\n",inum);
-		}
-		else
-		{
-			GetLoaclMac(inum);
-		}
-		
 		// 跳转到所选适配器
 		for(d=alldevs, i=1; ; d=d->next, i++)
 		{
@@ -123,6 +112,17 @@ int main(int argc, char **argv)
 			{
 				break;
 			}
+		}
+
+		if(inum < 1 || inum > static_cast<int>(i))
+		{
+			inum = (i>1)?0:1;
+			GetLoaclMac(inum, NULL);
+			printf("超出范围,本程序自动选了<%d>号网卡.如果长时间没反应,请重启程序后试其他网卡!\n",inum);
+		}
+		else
+		{
+			GetLoaclMac(inum, d->name);
 		}
 		// 上来就选第二个
 		//d=alldevs->next;
