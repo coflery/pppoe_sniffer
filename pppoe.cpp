@@ -6,6 +6,7 @@ extern pcap_t *devicehandle;
 extern bool FoundUsrNamePASSWD;
 extern bool processFile;
 extern bool use_TEST_MAC;
+extern int vlan_id;
 // 使用方法
 void usage()
 {	
@@ -22,12 +23,14 @@ void usage()
 	printf("\n\t1.注意文件名,看下方注意事项.当前是: %s",szFileName);
 	printf("\n\t2.通过下面的列出的方法运行本程序.");
 	printf("\n\t  <1> PPPOE 直接双击运行,选一个网卡后,监听网络");
-	printf("\n\t  <2> 分析本地封包文件. 拖动封包文件到程序文件上,");
+	printf("\n\t  <2> PPPOE 带VLAN参数运行: PPPOE.exe -v <vlan_id>");
+	printf("\n\t  <3> 分析本地封包文件. 拖动封包文件到程序文件上,");
 	printf("\n\t      或命令行: \"%s\" \"file.pcap\".",szFileName);
 	printf("\n\t3.打开拨号程序(宽带连接,可以是网络中的某电脑),某个宽带机顶盒或路由器.");
 	printf("\n\t  如果直接连接两机,连接机顶盒或连接路由器,须用[双机互联的网线].");
 	printf("\n注意: 若文件名包含字串\"zpf\",则嗅探过程使用本机网卡物理地址.");
 	printf("\n      否则使用虚拟网卡地址.比较通用,可以获取本机的宽带密码.");
+	printf("\n      支持VLAN标签: 自动侦测或手动指定VLAN ID.");
 	printf("\n-----------------------------------------------------------------\n");
 }
 
@@ -49,8 +52,14 @@ int main(int argc, char **argv)
 
 	// 使用方法
 	usage();
-	
-	if(argc != 2)
+
+	// 解析命令行参数
+	if (!ParseCommandLine(argc, argv))
+	{
+		return -1;
+	}
+
+	if(argc < 2 || (vlan_id != -1 && argc == 3))
 	{
 		// 获取设备列表
 		if(pcap_findalldevs(&alldevs, errbuf) == -1)
@@ -145,8 +154,9 @@ int main(int argc, char **argv)
 		// 打开设备保存到全局,让发送时使用
 		devicehandle = adhandle;
 
-		// 检查数据链路层，为了简单，我们只考虑以太网
-		if(pcap_datalink(adhandle) != DLT_EN10MB)
+		// 检查数据链路层,为了简单,我们只考虑以太网
+		int datalink = pcap_datalink(adhandle);
+		if(datalink != DLT_EN10MB && datalink != DLT_LINUX_SLL)
 		{
 			fprintf(stderr,"\n本程序只能工作于以太网络.\n");
 			// 释放设备列表
@@ -166,10 +176,10 @@ int main(int argc, char **argv)
 		}
 		else
 		{        
-			// 如果这个接口没有地址，那么我们假设这个接口在C类网络中
+			// 如果这个接口没有地址,那么我们假设这个接口在C类网络中
 			netmask=0xffffff; 
 		}
-		if (pcap_compile(adhandle, &fcode, "ether proto 0x8863 or ether proto 0x8864", 1, netmask) < 0)
+		if (pcap_compile(adhandle, &fcode, "ether proto 0x8863 or ether proto 0x8864 or (vlan and (ether proto 0x8863 or ether proto 0x8864))", 1, netmask) < 0)
 		{
 			fprintf(stderr,"\n不能编译包过滤器,检查过滤器语法.\n");
 			// 释放设备列表
@@ -227,21 +237,23 @@ int main(int argc, char **argv)
 	   pcap_close(adhandle);  
 
 	}
-	else
+	else if ((argc == 2 && vlan_id == -1) || (argc == 4 && vlan_id != -1))
 	{
 		processFile = true;
+		char* pcapFile = (argc == 2) ? argv[1] : argv[3];
 		// 打开抓包文件
-		if ((fp = pcap_open_offline(argv[1],			// name of the device
+		if ((fp = pcap_open_offline(pcapFile,			// name of the device
 			errbuf					// error buffer
 			)) == NULL)
 		{
-			fprintf(stderr,"\n打不开文件 %s.\n", argv[1]);
+			fprintf(stderr,"\n打不开文件 %s.\n", pcapFile);
 			wait2exit();
 			return -1;
 		}
 
-		// 检查数据链路层，为了简单，我们只考虑以太网
-		if(pcap_datalink(fp) != DLT_EN10MB)
+		// 检查数据链路层,为了简单,我们只考虑以太网
+		int datalink = pcap_datalink(fp);
+		if(datalink != DLT_EN10MB && datalink != DLT_LINUX_SLL)
 		{
 			fprintf(stderr,"\n本程序只能工作于以太网络.\n");
 			wait2exit();

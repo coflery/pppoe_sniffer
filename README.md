@@ -2,7 +2,7 @@
 
 ## 项目简介
 
-这是一个用于捕获PPPOE认证凭据（用户名/密码）的Windows控制台应用程序。它通过模拟PPPOE接入集中器(AC)来拦截网络中的PAP认证数据包，可用于找回本机或局域网中保存的宽带账号密码。
+这是一个用于捕获PPPOE认证凭据(用户名/密码)的Windows控制台应用程序。它通过模拟PPPOE接入集中器(AC)来拦截网络中的PAP认证数据包，可用于找回本机或局域网中保存的宽带账号密码。
 
 ---
 
@@ -31,9 +31,9 @@
 ## 系统要求
 
 - Windows操作系统
-- 安装 [Npcap](https://npcap.com/)（驱动可从官网下载，SDK已捆绑在 `npcap/`）
-- 管理员权限（用于原始数据包捕获/注入）
-- Visual Studio（用于编译）
+- 安装 [Npcap](https://npcap.com/)(驱动可从官网下载，SDK已捆绑在 `npcap/`)
+- 管理员权限(用于原始数据包捕获/注入)
+- Visual Studio(用于编译)
 
 ## 项目结构
 
@@ -53,7 +53,7 @@ pppoe_sniffer/
 ### 使用 Visual Studio
 
 1. 在 Visual Studio 中打开 `PPPOE.vcxproj`
-2. 选择 Release 配置（支持 Win32 或 x64 平台）
+2. 选择 Release 配置(支持 Win32 或 x64 平台)
 3. 点击生成
 
 ### 使用 MSBuild 命令行
@@ -84,7 +84,7 @@ PPPOE.exe
 
 1. 程序会列出可用的网卡，输入序号选择
 2. 程序开始监听PPPOE流量
-3. 触发目标设备（本机、机顶盒或路由器）的PPPOE拨号
+3. 触发目标设备(本机、机顶盒或路由器)的PPPOE拨号
 4. 成功捕获后会显示用户名和密码
 
 ### 离线分析模式
@@ -101,15 +101,15 @@ PPPOE.exe "capture.pcap"
 
 程序根据文件名自动选择MAC地址模式：
 
-- **默认模式**（文件名不包含 `"zpf"`）：使用虚拟MAC地址 `01:01:01:02:02:02`
+- **默认模式**(文件名不包含 `"zpf"`)：使用虚拟MAC地址 `01:01:01:02:02:02`
   - 通用性强，可用于获取本机宽带密码
   
-- **真实MAC模式**（文件名包含 `"zpf"`，如 `PPPOEzpf.exe`）：使用本机网卡物理地址
+- **真实MAC模式**(文件名包含 `"zpf"`，如 `PPPOEzpf.exe`)：使用本机网卡物理地址
   - 适用于直接连接目标设备的场景
 
 ### 网络连接方式
 
-- **直接连接两机/机顶盒/路由器**：请使用**双机互联的网线**（交叉线）
+- **直接连接两机/机顶盒/路由器**：请使用**双机互联的网线**(交叉线)
 - **局域网监听**：普通网线连接交换机即可
 
 ## 技术原理
@@ -132,7 +132,7 @@ PPPOE.exe "capture.pcap"
 
 ### 核心组件
 
-- **数据包捕获**: 使用Npcap过滤以太网类型 `0x8863`（PPPOE发现）和 `0x8864`（PPPOE会话）
+- **数据包捕获**: 使用Npcap过滤以太网类型 `0x8863`(PPPOE发现)和 `0x8864`(PPPOE会话)
 - **数据包注入**: 模拟AC发送响应包，引导客户端使用PAP认证
 - **协议解析**: 解析PPPOE标签、LCP选项、PAP认证数据
 
@@ -169,24 +169,24 @@ PPPOE.exe "capture.pcap"
 ### 关键数据结构
 
 ```cpp
-// 以太网头部（14字节）
+// 以太网头部(14字节)
 ETHERNET_HEADER {
     u_char dmac[6];     // 目标MAC
     u_char smac[6];     // 源MAC
     u_short type;       // 以太网类型
 }
 
-// PPPOE头部（6字节）
+// PPPOE头部(6字节)
 PPPOED_HEADER {
     u_char pppoe_ver_type;    // 版本/类型
-    u_char pppoe_code;        // 代码（PADI/PADO/PADR/PADS等）
+    u_char pppoe_code;        // 代码(PADI/PADO/PADR/PADS等)
     u_short pppoe_sessionid;  // 会话ID
     u_short pppoe_payload;    // 载荷长度
 }
 
 // PPP头部
 PPP_HEADER {
-    u_short protocol;   // 协议类型（LCP/PAP/CHAP等）
+    u_short protocol;   // 协议类型(LCP/PAP/CHAP等)
     u_char code;        // 代码
     u_char identifier;  // 标识符
     u_short length;     // 长度

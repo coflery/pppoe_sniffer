@@ -37,9 +37,82 @@ bool ShowMsg = true;
 char szFileName[MAX_PATH] = {0};
 bool use_TEST_MAC = true;
 bool FirstCallGetLoaclMac = true;
+int vlan_id = -1;           // VLAN ID (-1 = no VLAN, auto-detect)
+bool use_vlan = false;      // 是否使用VLAN标签
 //-------------------------------
 
-// 取得本地的MAC地址,保存到了hostmac全局变量里
+// 解析命令行参数
+bool ParseCommandLine(int argc, char **argv)
+{
+	// 检查是否使用了 -v 参数指定VLAN
+	for (int i = 1; i < argc; i++)
+	{
+		if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--vlan") == 0)
+		{
+			if (i + 1 < argc)
+			{
+				vlan_id = atoi(argv[i + 1]);
+				if (vlan_id < 0 || vlan_id > 4094)
+				{
+					printf("错误: VLAN ID 必须在 0-4094 之间\n");
+					return false;
+				}
+				use_vlan = true;
+				printf("指定 VLAN ID: %d\n", vlan_id);
+				i++; // 跳过下一个参数
+			}
+			else
+			{
+				printf("错误: -v 参数需要指定 VLAN ID\n");
+				return false;
+			}
+		}
+	}
+	return true;
+}
+
+// 判断数据包是否带VLAN标签并获取偏移量
+int GetEthHeaderOffset(const u_char *pkt_data)
+{
+	ETHERNET_HEADER* eth_header = (ETHERNET_HEADER*)pkt_data;
+	u_short ether_type = htons(eth_header->type);
+
+	if (ether_type == ETHERTYPE_VLAN)
+	{
+		VLAN_HEADER* vlan_header = (VLAN_HEADER*)&pkt_data[sizeof(ETHERNET_HEADER)];
+		u_short tci = ntohs(vlan_header->vlan_tci);
+		// 只取VLAN ID部分 (12 bits)
+		int detected_vlan = tci & 0x0FFF;
+
+		if (!use_vlan && vlan_id == -1)
+		{
+			// 自动侦测到VLAN
+			vlan_id = detected_vlan;
+			use_vlan = true;
+			printf("自动侦测到 VLAN ID: %d\n", vlan_id);
+		}
+
+		// VLAN标签占4字节
+		return sizeof(ETHERNET_HEADER) + sizeof(VLAN_HEADER);
+	}
+
+	return sizeof(ETHERNET_HEADER);
+}
+
+// 获取实际的以太网类型(处理VLAN封装)
+u_short GetActualEtherType(const u_char *pkt_data)
+{
+	ETHERNET_HEADER* eth_header = (ETHERNET_HEADER*)pkt_data;
+	u_short ether_type = htons(eth_header->type);
+
+	if (ether_type == ETHERTYPE_VLAN)
+	{
+		VLAN_HEADER* vlan_header = (VLAN_HEADER*)&pkt_data[sizeof(ETHERNET_HEADER)];
+		return htons(vlan_header->vlan_type);
+	}
+
+	return ether_type;
+}
 /*
 Adapter Name:   {C0B9A1E0-020E-4BE7-98C0-1EB53A115676}
 Adapter Desc:   Intel(R) 82566MM Gigabit Network Connection
@@ -147,17 +220,32 @@ bool GetLoaclMac(int& idx, const char* adapterName) // u_char** localmac
 // 根据收到的封包,创建PPPOE封包
 void build_PPPOE_PACKET(PPPOE_STATUS status, const u_char *pkt_data)
 {
+	int eth_offset = GetEthHeaderOffset(pkt_data);
+	int vlan_offset = (use_vlan) ? sizeof(VLAN_HEADER) : 0;
+
 	ETHERNET_HEADER* s_ether_header = (ETHERNET_HEADER*)packetPPPoE;
 	ETHERNET_HEADER* r_ether_header = (ETHERNET_HEADER*)pkt_data;
-	PPPOED_HEADER* s_pppoed_header = (PPPOED_HEADER*)&packetPPPoE[ETHER_HDRLEN];
-	PPPOED_HEADER* r_pppoed_header = (PPPOED_HEADER*)&pkt_data[ETHER_HDRLEN];
-	u_char* s_tag_data = (u_char*)&packetPPPoE[ETHER_HDRLEN+PPPOED_HDRLEN];
-	u_char* r_tag_data = (u_char*)&pkt_data[ETHER_HDRLEN+PPPOED_HDRLEN];
+	PPPOED_HEADER* s_pppoed_header = (PPPOED_HEADER*)&packetPPPoE[ETHER_HDRLEN + vlan_offset];
+	PPPOED_HEADER* r_pppoed_header = (PPPOED_HEADER*)&pkt_data[eth_offset];
+	u_char* s_tag_data = (u_char*)&packetPPPoE[ETHER_HDRLEN + vlan_offset + PPPOED_HDRLEN];
+	u_char* r_tag_data = (u_char*)&pkt_data[eth_offset + PPPOED_HDRLEN];
 
 	// 填充以太网首部
 	memcpy(s_ether_header->dmac,destmac,6);
 	memcpy(s_ether_header->smac,hostmac,6);
-	s_ether_header->type = htons(ETHERTYPE_PPPOED);
+
+	if (use_vlan)
+	{
+		// 添加VLAN标签
+		s_ether_header->type = htons(ETHERTYPE_VLAN);
+		VLAN_HEADER* vlan_header = (VLAN_HEADER*)&packetPPPoE[ETHER_HDRLEN];
+		vlan_header->vlan_type = htons(ETHERTYPE_PPPOED);
+		vlan_header->vlan_tci = htons(vlan_id & 0x0FFF);  // 12-bit VLAN ID
+	}
+	else
+	{
+		s_ether_header->type = htons(ETHERTYPE_PPPOED);
+	}
 
 	// 填充PPPOED首部
 	s_pppoed_header->pppoe_ver_type = 0x11;
@@ -230,7 +318,7 @@ void build_PPPOE_PACKET(PPPOE_STATUS status, const u_char *pkt_data)
 		r_tag_data+=tag_len;
 	}
 	s_pppoe_payload = htons(s_tag_add_len);
-	packetPPPoELen=ETHER_HDRLEN+PPPOED_HDRLEN+s_tag_add_len;
+	packetPPPoELen = ETHER_HDRLEN + vlan_offset + PPPOED_HDRLEN + s_tag_add_len;
 	s_tag_add_len=0;
 }
 
@@ -269,14 +357,28 @@ bool SendPacket()
 // 创建PAP要求设置封包
 void build_PAP_AUTH_CREQ_PACKET()
 {
+	int vlan_offset = (use_vlan) ? sizeof(VLAN_HEADER) : 0;
+
 	ETHERNET_HEADER* s_ether_header = (ETHERNET_HEADER*)packetPPPoE;
-	PPPOED_HEADER* s_pppoed_header = (PPPOED_HEADER*)&packetPPPoE[ETHER_HDRLEN];
-	PPP_HEADER* s_ppp_header = (PPP_HEADER*)&packetPPPoE[ETHER_HDRLEN+PPPOED_HDRLEN];
+	PPPOED_HEADER* s_pppoed_header = (PPPOED_HEADER*)&packetPPPoE[ETHER_HDRLEN + vlan_offset];
+	PPP_HEADER* s_ppp_header = (PPP_HEADER*)&packetPPPoE[ETHER_HDRLEN + vlan_offset + PPPOED_HDRLEN];
 
 	// 填充以太网首部
 	memcpy(s_ether_header->dmac,destmac,6);
 	memcpy(s_ether_header->smac,hostmac,6);
-	s_ether_header->type = htons(ETHERTYPE_PPPOES);
+
+	if (use_vlan)
+	{
+		// 添加VLAN标签
+		s_ether_header->type = htons(ETHERTYPE_VLAN);
+		VLAN_HEADER* vlan_header = (VLAN_HEADER*)&packetPPPoE[ETHER_HDRLEN];
+		vlan_header->vlan_type = htons(ETHERTYPE_PPPOES);
+		vlan_header->vlan_tci = htons(vlan_id & 0x0FFF);
+	}
+	else
+	{
+		s_ether_header->type = htons(ETHERTYPE_PPPOES);
+	}
 	// 填充PPPOED首部
 	s_pppoed_header->pppoe_ver_type = 0x11;
 	s_pppoed_header->pppoe_code = 0x00;
@@ -288,7 +390,7 @@ void build_PAP_AUTH_CREQ_PACKET()
 	s_ppp_header->identifier = Identifier_creq_auth;
 	s_ppp_header->length = htons(0x0000); // 暂时未知, 将根据 ppp_opt 随时修改
 	
-	u_char* s_opt_data = (u_char*)&packetPPPoE[ETHER_HDRLEN+PPPOED_HDRLEN+PPPOED_PPP_HDRLEN];
+	u_char* s_opt_data = (u_char*)&packetPPPoE[ETHER_HDRLEN + vlan_offset + PPPOED_HDRLEN + PPPOED_PPP_HDRLEN];
 
 	packetPPPoELen = 0;
 	// 填充要求设置选项
@@ -317,24 +419,37 @@ void build_PAP_AUTH_CREQ_PACKET()
 	s_ppp_header->length = htons(packetPPPoELen+4);
 	s_pppoed_header->pppoe_payload = htons(packetPPPoELen+6);
 
-	packetPPPoELen+=ETHER_HDRLEN+PPPOED_HDRLEN+PPPOED_PPP_HDRLEN;
+	packetPPPoELen+=ETHER_HDRLEN + vlan_offset + PPPOED_HDRLEN + PPPOED_PPP_HDRLEN;
 }
 
 // 创建LCP设置回应封包
 void build_LCP_ACK_PACKET(const u_char *pkt_data, bool bAck)
 {
+	int eth_offset = GetEthHeaderOffset(pkt_data);
+	int vlan_offset = (use_vlan) ? sizeof(VLAN_HEADER) : 0;
+
 	ETHERNET_HEADER* s_ether_header = (ETHERNET_HEADER*)packetPPPoE;
 	//ETHERNET_HEADER* r_ether_header = (ETHERNET_HEADER*)pkt_data;
 	//PPPOED_HEADER* s_pppoed_header = (PPPOED_HEADER*)&packetPPPoE[ETHER_HDRLEN];
-	PPPOED_HEADER* r_pppoed_header = (PPPOED_HEADER*)&pkt_data[ETHER_HDRLEN];
-	PPP_HEADER* s_ppp_header = (PPP_HEADER*)&packetPPPoE[ETHER_HDRLEN+PPPOED_HDRLEN];
+	PPPOED_HEADER* r_pppoed_header = (PPPOED_HEADER*)&pkt_data[eth_offset];
+	PPP_HEADER* s_ppp_header = (PPP_HEADER*)&packetPPPoE[ETHER_HDRLEN + vlan_offset + PPPOED_HDRLEN];
 	//PPP_HEADER* r_ppp_header = (PPP_HEADER*)&pkt_data[ETHER_HDRLEN+PPPOED_HDRLEN];
 
 	// 填充以太网首部
-	packetPPPoELen = ETHER_HDRLEN+PPPOED_HDRLEN+ntohs(r_pppoed_header->pppoe_payload);
-	memcpy(packetPPPoE,pkt_data,packetPPPoELen);
+	packetPPPoELen = ETHER_HDRLEN + vlan_offset + PPPOED_HDRLEN + ntohs(r_pppoed_header->pppoe_payload);
+	memcpy(packetPPPoE, pkt_data, eth_offset + PPPOED_HDRLEN + ntohs(r_pppoed_header->pppoe_payload));
 	memcpy(s_ether_header->dmac,destmac,6);
 	memcpy(s_ether_header->smac,hostmac,6);
+
+	// 如果发送带VLAN的包,需要修改类型
+	if (use_vlan)
+	{
+		s_ether_header->type = htons(ETHERTYPE_VLAN);
+		VLAN_HEADER* vlan_header = (VLAN_HEADER*)&packetPPPoE[ETHER_HDRLEN];
+		vlan_header->vlan_type = htons(ETHERTYPE_PPPOES);
+		vlan_header->vlan_tci = htons(vlan_id & 0x0FFF);
+	}
+
 	if (bAck)
 	{
 		s_ppp_header->code = LCP_CACK;
@@ -348,9 +463,10 @@ void build_LCP_ACK_PACKET(const u_char *pkt_data, bool bAck)
 // 处理PAP身份验证阶段
 void processPPP_PAP(PPP_PAP_CODE pap_code, const u_char *pkt_data)
 {
-	PPP_HEADER* r_ppp_header = (PPP_HEADER*)&pkt_data[ETHER_HDRLEN+PPPOED_HDRLEN];
+	int eth_offset = GetEthHeaderOffset(pkt_data);
+	PPP_HEADER* r_ppp_header = (PPP_HEADER*)&pkt_data[eth_offset + PPPOED_HDRLEN];
 	u_short opt_len = ntohs(r_ppp_header->length)-4;
-	
+
 	switch (pap_code)
 	{
 		// 终于收到用户名和密码了
@@ -360,7 +476,7 @@ void processPPP_PAP(PPP_PAP_CODE pap_code, const u_char *pkt_data)
 			{
 				printf(" PAP_AREQ");
 			}
-			u_char* r_opt_data = (u_char*)&pkt_data[ETHER_HDRLEN+PPPOED_HDRLEN+PPPOED_PPP_HDRLEN];
+			u_char* r_opt_data = (u_char*)&pkt_data[eth_offset + PPPOED_HDRLEN + PPPOED_PPP_HDRLEN];
 			usernamelen = r_opt_data[0];
 			memcpy(username,r_opt_data+1,usernamelen);
 			printf("\n获得 用户名和密码, ");
@@ -388,7 +504,8 @@ void processPPP_PAP(PPP_PAP_CODE pap_code, const u_char *pkt_data)
 // 处理LCP设置阶段
 void processPPP_LCP(PPP_LCP_CODE lcp_code, const u_char *pkt_data)
 {
-	PPP_HEADER* r_ppp_header = (PPP_HEADER*)&pkt_data[ETHER_HDRLEN+PPPOED_HDRLEN];
+	int eth_offset = GetEthHeaderOffset(pkt_data);
+	PPP_HEADER* r_ppp_header = (PPP_HEADER*)&pkt_data[eth_offset + PPPOED_HDRLEN];
 	u_short opt_len = ntohs(r_ppp_header->length)-4;
 	if (0 == opt_len)
 	{
@@ -414,9 +531,9 @@ void processPPP_LCP(PPP_LCP_CODE lcp_code, const u_char *pkt_data)
 			u_short opt_AUTH = 0;
 			u_long  opt_MAGNUM = 0;
 			u_char  opt_CBACK = 0;
-			
+
 			//u_char* s_opt_data = (u_char*)&packetPPPoE[ETHER_HDRLEN+PPPOED_HDRLEN+PPPOED_PPP_HDRLEN];
-			u_char* r_opt_data = (u_char*)&pkt_data[ETHER_HDRLEN+PPPOED_HDRLEN+PPPOED_PPP_HDRLEN];
+			u_char* r_opt_data = (u_char*)&pkt_data[eth_offset + PPPOED_HDRLEN + PPPOED_PPP_HDRLEN];
 			int opt_chked_len = 0, lastoptlen = 0;
 			for (int i = 0; i < opt_len; i+=lastoptlen)
 			{
@@ -618,11 +735,13 @@ void processPPP_LCP(PPP_LCP_CODE lcp_code, const u_char *pkt_data)
 // 处理PPPOED发现阶段
 void check_PPPOED(const u_char *pkt_data)
 {
+	int eth_offset = GetEthHeaderOffset(pkt_data);
+
 	if (ShowMsg)
 	{
 		printf("PPPOE 协议 Discovery 阶段, ");
 	}
-	PPPOED_HEADER* g_pppoed_header = (PPPOED_HEADER*)&pkt_data[ETHER_HDRLEN];
+	PPPOED_HEADER* g_pppoed_header = (PPPOED_HEADER*)&pkt_data[eth_offset];
 	u_char pppoed_type = g_pppoed_header->pppoe_code;
 	if (ShowMsg)
 	{
@@ -697,11 +816,13 @@ void check_PPPOED(const u_char *pkt_data)
 // 处理PPP连接阶段
 void check_PPPOES(const u_char *pkt_data)
 {
+	int eth_offset = GetEthHeaderOffset(pkt_data);
+
 	if (ShowMsg)
 	{
 		printf("PPPOE 协议 PPP 会话阶段, ");
 	}
-	PPP_HEADER* g_ppp_header = (PPP_HEADER*)&pkt_data[ETHER_HDRLEN+PPPOED_HDRLEN];
+	PPP_HEADER* g_ppp_header = (PPP_HEADER*)&pkt_data[eth_offset + PPPOED_HDRLEN];
 	u_short ppp_type = ntohs(g_ppp_header->protocol);
 //	u_char Id = g_ppp_header->identifier;
 //	if (Id == Identifier_creq_auth)
@@ -791,7 +912,10 @@ void check_PPPOES(const u_char *pkt_data)
 // 处理接收的封包
 void ProcessPktdata(const u_char *pkt_data)
 {
-	ETHERNET_HEADER* g_ethernet_header = (ETHERNET_HEADER*)pkt_data;
+	// 获取以太网类型(自动处理VLAN)
+	u_short ether_type = GetActualEtherType(pkt_data);
+	int eth_offset = GetEthHeaderOffset(pkt_data);
+
 	// 比较MAC地址,根据发送地址,判断是否需要处理(自己发送的不处理)
 	// 如果没调用过GetLoaclMac就调用一次
 	if (FirstCallGetLoaclMac)
@@ -799,6 +923,7 @@ void ProcessPktdata(const u_char *pkt_data)
 		int i = 0;
 		GetLoaclMac(i);
 	}
+	// 源MAC地址在以太网头部偏移6的位置(与VLAN无关)
 	u_char* smac = (u_char*)(pkt_data+6);
 	if (!memcmp(smac,hostmac,6))
 	{
@@ -815,8 +940,7 @@ void ProcessPktdata(const u_char *pkt_data)
 		}
 		return;
 	}
-	
-	u_short ether_type = htons(g_ethernet_header->type);
+
 	switch (ether_type)
 	{
 	case ETHERTYPE_PPPOED: // 0x8863 Discovery阶段

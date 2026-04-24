@@ -23,7 +23,16 @@ using namespace std;
 #ifndef ETHERTYPE_PPPOES
 #define ETHERTYPE_PPPOES	0x8864
 #endif
+#ifndef ETHERTYPE_VLAN
+#define ETHERTYPE_VLAN		0x8100
+#endif
 #define PPPOE_HDRLEN 6
+
+// VLAN标签结构
+typedef struct _VLAN_HEADER{
+    u_short vlan_tci;       // PRI(3 bits) + DEI(1 bit) + VLAN_ID(12 bits)
+    u_short vlan_type;      // ethertype (0x8863/0x8864/...)
+}VLAN_HEADER, *PVLAN_HEADER;
 
 #define PADS_SESSION_ID		0x0311
 #define PAP_AUTH			0xc023
@@ -160,6 +169,9 @@ void WriteInfoToFile();
 
 // 根据程序文件名来决定使用的网卡物理地址
 void UseMacByFileName();
+
+// 解析命令行参数
+bool ParseCommandLine(int argc, char **argv);
 
 // 获取键盘输入,得到选择的网卡号码
 bool GetDeviceToUse(int& DeviceNbr);
