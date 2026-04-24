@@ -18,7 +18,7 @@ void usage()
 	printf("\n    本程序可以嗅探到网络中使用PPPOE拨号的用户名和密码.");
 	printf("\n比如(本机或局域网中)xDSL宽带连接,宽带数字电视机顶盒,路由器等保存的帐号密码.");
 	printf("\n\t\t\t\t版权 (C) 2008 zhupf (xzfff@126.com).");
-	printf("\n使用方法:\t(使用前必须安装[WinPcap],建议4.0.2版)");
+	printf("\n使用方法:\t(使用前必须安装[Npcap],建议从官网下载最新版)");
 	printf("\n\t1.注意文件名,看下方注意事项.当前是: %s",szFileName);
 	printf("\n\t2.通过下面的列出的方法运行本程序.");
 	printf("\n\t  <1> PPPOE 直接双击运行,选一个网卡后,监听网络");
@@ -84,7 +84,7 @@ int main(int argc, char **argv)
 		
 		if(i==0)
 		{
-			printf("\n找不到设备! WinPcap 必须安装.\n");
+			printf("\n找不到设备! Npcap 必须安装.\n");
 			return -1;
 		}
 		printf("要使用第几个(1-%d): ",i);
@@ -136,7 +136,7 @@ int main(int argc, char **argv)
 								 errbuf			// error buffer
 								 )) == NULL)
 		{
-			fprintf(stderr,"\n打不开网卡. WinPcap不支持 %s \n", d->name);
+			fprintf(stderr,"\n打不开网卡. Npcap不支持 %s \n", d->name);
 			// 释放设备列表
 			pcap_freealldevs(alldevs);
 			wait2exit();

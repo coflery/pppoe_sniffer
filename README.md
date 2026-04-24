@@ -31,7 +31,7 @@
 ## 系统要求
 
 - Windows操作系统
-- 安装 [WinPcap](https://www.winpcap.org/) 4.1.2 或更高版本（已捆绑 `WpdPack/`）
+- 安装 [Npcap](https://npcap.com/)（驱动可从官网下载，SDK已捆绑在 `npcap/`）
 - 管理员权限（用于原始数据包捕获/注入）
 - Visual Studio（用于编译）
 
@@ -43,9 +43,9 @@ pppoe_sniffer/
 ├── common.cpp         # 核心协议实现
 ├── common.h           # 头文件、结构体和函数声明
 ├── PPPOE.vcxproj      # Visual Studio 项目文件
-└── WpdPack/           # WinPcap 开发工具包
+└── npcap/             # Npcap 开发工具包
     ├── Include/       # pcap 头文件
-    └── Lib/           # wpcap.lib, Packet.lib
+    └── Lib/           # wpcap.lib, Packet.lib (x86/x64/ARM64)
 ```
 
 ## 编译方法
@@ -53,18 +53,24 @@ pppoe_sniffer/
 ### 使用 Visual Studio
 
 1. 在 Visual Studio 中打开 `PPPOE.vcxproj`
-2. 选择 Release / Win32 平台
+2. 选择 Release 配置（支持 Win32 或 x64 平台）
 3. 点击生成
 
 ### 使用 MSBuild 命令行
 
 ```bash
+# Win32 版本
 msbuild PPPOE.vcxproj /p:Configuration=Release /p:Platform=Win32
+
+# x64 版本
+msbuild PPPOE.vcxproj /p:Configuration=Release /p:Platform=x64
 ```
 
 **输出位置:**
-- Debug 构建：`Debug/PPPOE.exe`
-- Release 构建：`Release/PPPOE.exe`
+- Win32 Debug 构建：`Debug/PPPOE.exe`
+- Win32 Release 构建：`Release/PPPOE.exe`
+- x64 Debug 构建：`x64/Debug/PPPOE.exe`
+- x64 Release 构建：`x64/Release/PPPOE.exe`
 
 ## 使用方法
 
@@ -126,7 +132,7 @@ PPPOE.exe "capture.pcap"
 
 ### 核心组件
 
-- **数据包捕获**: 使用WinPcap过滤以太网类型 `0x8863`（PPPOE发现）和 `0x8864`（PPPOE会话）
+- **数据包捕获**: 使用Npcap过滤以太网类型 `0x8863`（PPPOE发现）和 `0x8864`（PPPOE会话）
 - **数据包注入**: 模拟AC发送响应包，引导客户端使用PAP认证
 - **协议解析**: 解析PPPOE标签、LCP选项、PAP认证数据
 
@@ -143,7 +149,7 @@ PPPOE.exe "capture.pcap"
 
 ## 注意事项
 
-1. **必须安装 WinPcap** 才能运行本程序
+1. **必须安装 Npcap** 才能运行本程序
 2. **需要管理员权限** 进行原始数据包捕获和注入
 3. 网卡使用**混杂模式**接收所有流量
 4. 仅支持**PAP明文认证**，不支持CHAP等加密认证
@@ -189,7 +195,7 @@ PPP_HEADER {
 
 ### 依赖库
 
-- `wpcap.lib` - WinPcap主库
+- `wpcap.lib` - Npcap主库
 - `Packet.lib` - 数据包处理库
 - `ws2_32.lib` - Windows Socket库
 - `Iphlpapi.lib` - IP Helper库

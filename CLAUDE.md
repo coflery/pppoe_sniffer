@@ -11,7 +11,7 @@
 ### 前置条件
 
 - 安装了 Visual Studio 的 Windows 系统（使用 PlatformToolset v142）
-- WinPcap 4.0.2 或更高版本（已捆绑在 `WpdPack/` 中）
+- Npcap（已捆绑在 `npcap/` 中，需要安装 Npcap 驱动）
 
 ### 构建命令
 
@@ -20,11 +20,14 @@
 # 在 Visual Studio 中打开 PPPOE.vcxproj 并构建
 # 或使用 MSBuild
 msbuild PPPOE.vcxproj /p:Configuration=Release /p:Platform=Win32
+msbuild PPPOE.vcxproj /p:Configuration=Release /p:Platform=x64
 ```
 
 **输出位置：**
-- Debug 构建：`Debug/PPPOE.exe`
-- Release 构建：`Release/PPPOE.exe`
+- Win32 Debug 构建：`Debug/PPPOE.exe`
+- Win32 Release 构建：`Release/PPPOE.exe`
+- x64 Debug 构建：`x64/Debug/PPPOE.exe`
+- x64 Release 构建：`x64/Release/PPPOE.exe`
 
 ## 项目结构
 
@@ -34,9 +37,9 @@ pppoe_sniffer/
 ├── common.cpp         # 核心协议实现
 ├── common.h           # 头文件、结构体和函数声明
 ├── PPPOE.vcxproj      # Visual Studio 项目文件
-└── WpdPack/           # WinPcap 开发工具包
+└── npcap/             # Npcap 开发工具包
     ├── Include/       # pcap 头文件
-    └── Lib/           # wpcap.lib, Packet.lib
+    └── Lib/           # wpcap.lib, Packet.lib (x86/x64/ARM64)
 ```
 
 ## 架构
@@ -44,7 +47,7 @@ pppoe_sniffer/
 ### 核心组件
 
 1. **数据包捕获** (`pppoe.cpp`)
-   - 使用 WinPcap 捕获实时流量或读取 pcap 文件
+   - 使用 Npcap 捕获实时流量或读取 pcap 文件
    - 过滤以太网类型 `0x8863`（PPPOE 发现）和 `0x8864`（PPPOE 会话）
    - 支持两种模式：从网卡实时捕获或离线文件分析
 
@@ -110,9 +113,10 @@ PPPOE.exe capture.pcap
 
 ## 重要说明
 
-- 系统需要已安装 WinPcap
+- 系统需要已安装 Npcap（驱动可从 https://npcap.com/ 下载）
 - 需要以管理员权限运行才能进行原始数据包捕获/注入
 - 对网卡使用混杂模式
 - 硬编码会话 ID `0x0311`（PADS_SESSION_ID）
 - 硬编码魔术数字 `0x5e630ab8` 用于 LCP
 - 代码注释和输出主要为中文
+- 支持 x86 (Win32) 和 x64 架构编译
