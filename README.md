@@ -26,6 +26,7 @@
 - 支持捕获本机或局域网内其他设备的宽带连接凭据
 - 支持从实时网卡流量捕获或离线pcap文件分析
 - 支持xDSL宽带连接、宽带数字电视机顶盒、路由器等设备
+- 支持IEEE 802.1Q VLAN标签(自动侦测或手动指定)
 - 自动保存捕获结果到本地文件
 
 ## 系统要求
@@ -67,12 +68,23 @@ msbuild PPPOE.vcxproj /p:Configuration=Release /p:Platform=x64
 ```
 
 **输出位置:**
-- Win32 Debug 构建：`Debug/PPPOE.exe`
-- Win32 Release 构建：`Release/PPPOE.exe`
-- x64 Debug 构建：`x64/Debug/PPPOE.exe`
-- x64 Release 构建：`x64/Release/PPPOE.exe`
+- Win32 Debug 构建：`build/Win32/Debug/PPPOE.exe`
+- Win32 Release 构建：`build/Win32/Release/PPPOE.exe`
+- x64 Debug 构建：`build/x64/Debug/PPPOE.exe`
+- x64 Release 构建：`build/x64/Release/PPPOE.exe`
 
 ## 使用方法
+
+### 命令行参数
+
+```
+用法: PPPOE.exe [选项]
+
+选项:
+  -v <vlan_id>, --vlan <vlan_id>  手动指定 VLAN ID (0-4094)
+  -m, --mac                       使用虚拟 MAC 地址
+  -f <file>, --file <file>        分析本地 pcap 文件
+```
 
 ### 实时捕获模式
 
@@ -87,14 +99,15 @@ PPPOE.exe
 3. 触发目标设备(本机、机顶盒或路由器)的PPPOE拨号
 4. 成功捕获后会显示用户名和密码
 
-### 离线分析模式
-
-分析已保存的pcap抓包文件：
+### 带VLAN的实时捕获
 
 ```bash
-# 拖动pcap文件到程序图标上
-# 或命令行执行
-PPPOE.exe "capture.pcap"
+# 自动侦测 VLAN ID
+PPPOE.exe
+
+# 手动指定 VLAN ID
+PPPOE.exe -v 100
+PPPOE.exe --vlan 100
 ```
 
 ### MAC地址模式
@@ -116,6 +129,19 @@ PPPOE.exe -m
 PPPOE.exe --mac
 ```
 
+### 离线分析模式
+
+分析已保存的pcap抓包文件：
+
+```bash
+# 使用 -f 参数指定 pcap 文件
+PPPOE.exe -f capture.pcap
+PPPOE.exe --file capture.pcap
+
+# 带 VLAN 的离线分析
+PPPOE.exe -v 100 -f capture.pcap
+```
+
 ### 网络连接方式
 
 - **直接连接两机/机顶盒/路由器**：请使用**双机互联的网线**(交叉线)
@@ -127,9 +153,9 @@ PPPOE.exe --mac
 
 1. **发现阶段 (Discovery)**：
    - PADI (客户端广播寻找AC)
-   - PADO (AC响应)
+   - PADO (AC响应，本程序模拟)
    - PADR (客户端请求连接)
-   - PADS (AC确认，分配Session ID)
+   - PADS (AC确认，分配Session ID 0x0311)
 
 2. **LCP阶段 (Link Control Protocol)**：
    - 协商最大接收单元(MRU)、认证协议等参数
@@ -138,6 +164,14 @@ PPPOE.exe --mac
 3. **PAP阶段 (Password Authentication Protocol)**：
    - 客户端发送用户名/密码
    - **程序在此阶段提取凭据**
+
+### VLAN支持
+
+程序支持IEEE 802.1Q VLAN标签：
+
+- **自动侦测**：收到带VLAN标签的数据包时自动提取VLAN ID
+- **手动指定**：通过 `-v` 参数指定VLAN ID
+- 发送响应包时自动添加正确的VLAN标签
 
 ### 核心组件
 
@@ -185,6 +219,12 @@ ETHERNET_HEADER {
     u_short type;       // 以太网类型
 }
 
+// VLAN标签头部(4字节)
+VLAN_HEADER {
+    u_short vlan_tci;   // PRI(3 bits) + DEI(1 bit) + VLAN_ID(12 bits)
+    u_short vlan_type;  // 实际以太网类型
+}
+
 // PPPOE头部(6字节)
 PPPOED_HEADER {
     u_char pppoe_ver_type;    // 版本/类型
@@ -219,4 +259,4 @@ PPP_HEADER {
 
 ---
 
-*README 编写于 2025年4月*
+*README 更新于 2026年4月*

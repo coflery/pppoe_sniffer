@@ -24,10 +24,10 @@ msbuild PPPOE.vcxproj /p:Configuration=Release /p:Platform=x64
 ```
 
 **输出位置：**
-- Win32 Debug 构建：`Debug/PPPOE.exe`
-- Win32 Release 构建：`Release/PPPOE.exe`
-- x64 Debug 构建：`x64/Debug/PPPOE.exe`
-- x64 Release 构建：`x64/Release/PPPOE.exe`
+- Win32 Debug 构建：`build/Win32/Debug/PPPOE.exe`
+- Win32 Release 构建：`build/Win32/Release/PPPOE.exe`
+- x64 Debug 构建：`build/x64/Debug/PPPOE.exe`
+- x64 Release 构建：`build/x64/Release/PPPOE.exe`
 
 ## 项目结构
 
@@ -49,8 +49,8 @@ pppoe_sniffer/
 1. **数据包捕获** (`pppoe.cpp`)
    - 使用 Npcap 捕获实时流量或读取 pcap 文件
    - 过滤以太网类型 `0x8863`(PPPOE 发现)和 `0x8864`(PPPOE 会话)
+   - 支持 BPF 过滤器：包括带 VLAN 标签的 PPPOE 流量
    - 支持两种模式：从网卡实时捕获或离线文件分析
-   - 自动侦测或手动指定 VLAN ID
 
 2. **协议栈** (`common.cpp`)
    - **发现阶段**：处理 PADI/PADO/PADR/PADS 数据包以建立会话
@@ -59,9 +59,9 @@ pppoe_sniffer/
    - **VLAN 处理**：自动检测 VLAN 标签并正确解析/构造数据包
 
 3. **数据包构造**
-   - `build_PPPOE_PACKET()` - 构建发现阶段响应
-   - `build_LCP_ACK_PACKET()` - 构建 LCP 确认响应
-   - `build_PAP_AUTH_CREQ_PACKET()` - 发送 PAP 认证要求
+   - `build_PPPOE_PACKET()` - 构建发现阶段响应 (PADO/PADS)
+   - `build_LCP_ACK_PACKET()` - 构建 LCP 确认/拒绝响应
+   - `build_PAP_AUTH_CREQ_PACKET()` - 发送要求 PAP 认证的 LCP 配置请求
    - `SendPacket()` - 通过 pcap_sendpacket() 发送构造的数据包
 
 ### 关键数据结构
@@ -70,8 +70,8 @@ pppoe_sniffer/
 // 在 common.h 中定义的协议头
 ETHERNET_HEADER   # 以太网 II 头部(14 字节)
 VLAN_HEADER       # VLAN 标签(4 字节)：TCI + 封装类型
-                  #   - tci: PRI(3 bits) + DEI(1 bit) + VLAN_ID(12 bits)
-                  #   - inner_type: 封装的实际以太网类型
+                  #   - vlan_tci: PRI(3 bits) + DEI(1 bit) + VLAN_ID(12 bits)
+                  #   - vlan_type: 封装的实际以太网类型(0x8863/0x8864)
 PPPOED_HEADER     # PPPOE 头部(6 字节)：版本/类型、代码、会话ID、载荷长度
 PPP_HEADER        # PPP 头部(6 字节)：协议、代码、标识符、长度
 PPPOE_TAG         # PPPOE 标签结构，用于发现阶段
@@ -95,20 +95,20 @@ LCP_OPT           # LCP 配置选项
 1. **发现阶段** (`check_PPPOED()`)
    - 收到 PADI → 发送带 AC-Name 标签的 PADO
    - 收到 PADR → 发送会话 ID 为 0x0311 的 PADS
-   - 立即发送要求 PAP 认证的 LCP 配置请求
+   - 进入 LCP 协商阶段
 
 2. **会话阶段** (`check_PPPOES()`)
    - 处理 LCP 配置请求 → 发送 ACK/REJ
-   - 当同意 PAP 认证后，发送要求 PAP 的配置请求
-   - 从 PAP 认证请求中提取凭据
+   - 当收到非 PAP 认证请求时，主动发送要求 PAP 的配置请求
+   - 从 PAP 认证请求(PAP_AREQ)中提取凭据
 
-### MAC 地址行为
+### 命令行参数
 
-程序通过命令行参数选择 MAC 模式：
-- **真实 MAC**(默认)：使用本机网卡物理地址
-- **虚拟 MAC**：使用 `-m` 或 `--mac` 参数，使用硬编码 MAC `01:01:01:02:02:02`
+程序支持以下命令行参数：
 
-这由 `use_TEST_MAC` 标志控制。
+- `-v <vlan_id>` / `--vlan <vlan_id>` - 手动指定 VLAN ID (0-4094)
+- `-m` / `--mac` - 使用虚拟 MAC 地址 `01:01:01:02:02:02`
+- `-f <file>` / `--file <file>` - 分析本地 pcap 文件(离线模式)
 
 ## 使用方法
 
@@ -138,10 +138,12 @@ PPPOE.exe --mac
 
 **离线分析：**
 ```bash
-PPPOE.exe capture.pcap
+# 使用 -f 参数指定 pcap 文件
+PPPOE.exe -f capture.pcap
+PPPOE.exe --file capture.pcap
 
 # 带 VLAN 的离线分析
-PPPOE.exe -v 100 capture.pcap
+PPPOE.exe -v 100 -f capture.pcap
 ```
 
 **输出：**
@@ -154,6 +156,6 @@ PPPOE.exe -v 100 capture.pcap
 - 需要以管理员权限运行才能进行原始数据包捕获/注入
 - 对网卡使用混杂模式
 - 硬编码会话 ID `0x0311`(PADS_SESSION_ID)
-- 硬编码魔术数字 `0x5e630ab8` 用于 LCP
+- 硬编码魔术数字 `0x5e630ab8` 用于 LCP Magic Number
 - 代码注释和输出主要为中文
 - 支持 x86 (Win32) 和 x64 架构编译
