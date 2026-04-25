@@ -63,28 +63,28 @@
     <_ProjectFileVersion>16.0.35824.211</_ProjectFileVersion>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <OutDir>.\Debug\</OutDir>
-    <IntDir>.\Debug\</IntDir>
+    <OutDir>.\build\x86\Debug\</OutDir>
+    <IntDir>.\build\x86\Debug\</IntDir>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <OutDir>.\Release\</OutDir>
-    <IntDir>.\Release\</IntDir>
+    <OutDir>.\build\x86\Release\</OutDir>
+    <IntDir>.\build\x86\Release\</IntDir>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <OutDir>.\x64\Debug\</OutDir>
-    <IntDir>.\x64\Debug\</IntDir>
+    <OutDir>.\build\x64\Debug\</OutDir>
+    <IntDir>.\build\x64\Debug\</IntDir>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <OutDir>.\x64\Release\</OutDir>
-    <IntDir>.\x64\Release\</IntDir>
+    <OutDir>.\build\x64\Release\</OutDir>
+    <IntDir>.\build\x64\Release\</IntDir>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <Midl>
-      <TypeLibraryName>.\Debug/PPPOE.tlb</TypeLibraryName>
+      <TypeLibraryName>.\build\x86\Debug/PPPOE.tlb</TypeLibraryName>
       <HeaderFileName />
     </Midl>
     <ClCompile>
@@ -94,10 +94,10 @@
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
-      <PrecompiledHeaderOutputFile>.\Debug/PPPOE.pch</PrecompiledHeaderOutputFile>
-      <AssemblerListingLocation>.\Debug/</AssemblerListingLocation>
-      <ObjectFileName>.\Debug/</ObjectFileName>
-      <ProgramDataBaseFileName>.\Debug/</ProgramDataBaseFileName>
+      <PrecompiledHeaderOutputFile>.\build\x86\Debug/PPPOE.pch</PrecompiledHeaderOutputFile>
+      <AssemblerListingLocation>.\build\x86\Debug/</AssemblerListingLocation>
+      <ObjectFileName>.\build\x86\Debug/</ObjectFileName>
+      <ProgramDataBaseFileName>.\build\x86\Debug/</ProgramDataBaseFileName>
       <WarningLevel>Level3</WarningLevel>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
@@ -109,10 +109,10 @@
     </ResourceCompile>
     <Link>
       <AdditionalOptions>/Force %(AdditionalOptions)</AdditionalOptions>
-      <OutputFile>.\Debug/PPPOE.exe</OutputFile>
+      <OutputFile>.\build\x86\Debug/PPPOE.exe</OutputFile>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <ProgramDatabaseFile>.\Debug/PPPOE.pdb</ProgramDatabaseFile>
+      <ProgramDatabaseFile>.\build\x86\Debug/PPPOE.pdb</ProgramDatabaseFile>
       <SubSystem>Console</SubSystem>
       <RandomizedBaseAddress>false</RandomizedBaseAddress>
       <DataExecutionPrevention />
@@ -122,12 +122,12 @@
     </Link>
     <Bscmake>
       <SuppressStartupBanner>true</SuppressStartupBanner>
-      <OutputFile>.\Debug/PPPOE.bsc</OutputFile>
+      <OutputFile>.\build\x86\Debug/PPPOE.bsc</OutputFile>
     </Bscmake>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <Midl>
-      <TypeLibraryName>.\Release/PPPOE.tlb</TypeLibraryName>
+      <TypeLibraryName>.\build\x86\Release/PPPOE.tlb</TypeLibraryName>
       <HeaderFileName />
     </Midl>
     <ClCompile>
@@ -137,10 +137,10 @@
       <StringPooling>true</StringPooling>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <FunctionLevelLinking>true</FunctionLevelLinking>
-      <PrecompiledHeaderOutputFile>.\Release/PPPOE.pch</PrecompiledHeaderOutputFile>
-      <AssemblerListingLocation>.\Release/</AssemblerListingLocation>
-      <ObjectFileName>.\Release/</ObjectFileName>
-      <ProgramDataBaseFileName>.\Release/</ProgramDataBaseFileName>
+      <PrecompiledHeaderOutputFile>.\build\x86\Release/PPPOE.pch</PrecompiledHeaderOutputFile>
+      <AssemblerListingLocation>.\build\x86\Release/</AssemblerListingLocation>
+      <ObjectFileName>.\build\x86\Release/</ObjectFileName>
+      <ProgramDataBaseFileName>.\build\x86\Release/</ProgramDataBaseFileName>
       <WarningLevel>Level3</WarningLevel>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <AdditionalIncludeDirectories>$(ProjectDir)npcap\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
@@ -151,9 +151,9 @@
     </ResourceCompile>
     <Link>
       <AdditionalOptions>/FORCE:MULTIPLE %(AdditionalOptions)</AdditionalOptions>
-      <OutputFile>.\Release/PPPOE.exe</OutputFile>
+      <OutputFile>.\build\x86\Release/PPPOE.exe</OutputFile>
       <SuppressStartupBanner>true</SuppressStartupBanner>
-      <ProgramDatabaseFile>.\Release/PPPOE.pdb</ProgramDatabaseFile>
+      <ProgramDatabaseFile>.\build\x86\Release/PPPOE.pdb</ProgramDatabaseFile>
       <SubSystem>Console</SubSystem>
       <RandomizedBaseAddress>false</RandomizedBaseAddress>
       <DataExecutionPrevention />
@@ -163,12 +163,12 @@
     </Link>
     <Bscmake>
       <SuppressStartupBanner>true</SuppressStartupBanner>
-      <OutputFile>.\Release/PPPOE.bsc</OutputFile>
+      <OutputFile>.\build\x86\Release/PPPOE.bsc</OutputFile>
     </Bscmake>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <Midl>
-      <TypeLibraryName>.\x64\Debug/PPPOE.tlb</TypeLibraryName>
+      <TypeLibraryName>.\build\x64\Debug/PPPOE.tlb</TypeLibraryName>
       <HeaderFileName />
     </Midl>
     <ClCompile>
@@ -178,10 +178,10 @@
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
-      <PrecompiledHeaderOutputFile>.\x64\Debug/PPPOE.pch</PrecompiledHeaderOutputFile>
-      <AssemblerListingLocation>.\x64\Debug/</AssemblerListingLocation>
-      <ObjectFileName>.\x64\Debug/</ObjectFileName>
-      <ProgramDataBaseFileName>.\x64\Debug/</ProgramDataBaseFileName>
+      <PrecompiledHeaderOutputFile>.\build\x64\Debug/PPPOE.pch</PrecompiledHeaderOutputFile>
+      <AssemblerListingLocation>.\build\x64\Debug/</AssemblerListingLocation>
+      <ObjectFileName>.\build\x64\Debug/</ObjectFileName>
+      <ProgramDataBaseFileName>.\build\x64\Debug/</ProgramDataBaseFileName>
       <WarningLevel>Level3</WarningLevel>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
@@ -193,10 +193,10 @@
     </ResourceCompile>
     <Link>
       <AdditionalOptions>/Force %(AdditionalOptions)</AdditionalOptions>
-      <OutputFile>.\x64\Debug/PPPOE.exe</OutputFile>
+      <OutputFile>.\build\x64\Debug/PPPOE.exe</OutputFile>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <ProgramDatabaseFile>.\x64\Debug/PPPOE.pdb</ProgramDatabaseFile>
+      <ProgramDatabaseFile>.\build\x64\Debug/PPPOE.pdb</ProgramDatabaseFile>
       <SubSystem>Console</SubSystem>
       <RandomizedBaseAddress>false</RandomizedBaseAddress>
       <DataExecutionPrevention />
@@ -206,12 +206,12 @@
     </Link>
     <Bscmake>
       <SuppressStartupBanner>true</SuppressStartupBanner>
-      <OutputFile>.\x64\Debug/PPPOE.bsc</OutputFile>
+      <OutputFile>.\build\x64\Debug/PPPOE.bsc</OutputFile>
     </Bscmake>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <Midl>
-      <TypeLibraryName>.\x64\Release/PPPOE.tlb</TypeLibraryName>
+      <TypeLibraryName>.\build\x64\Release/PPPOE.tlb</TypeLibraryName>
       <HeaderFileName />
     </Midl>
     <ClCompile>
@@ -221,10 +221,10 @@
       <StringPooling>true</StringPooling>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <FunctionLevelLinking>true</FunctionLevelLinking>
-      <PrecompiledHeaderOutputFile>.\x64\Release/PPPOE.pch</PrecompiledHeaderOutputFile>
-      <AssemblerListingLocation>.\x64\Release/</AssemblerListingLocation>
-      <ObjectFileName>.\x64\Release/</ObjectFileName>
-      <ProgramDataBaseFileName>.\x64\Release/</ProgramDataBaseFileName>
+      <PrecompiledHeaderOutputFile>.\build\x64\Release/PPPOE.pch</PrecompiledHeaderOutputFile>
+      <AssemblerListingLocation>.\build\x64\Release/</AssemblerListingLocation>
+      <ObjectFileName>.\build\x64\Release/</ObjectFileName>
+      <ProgramDataBaseFileName>.\build\x64\Release/</ProgramDataBaseFileName>
       <WarningLevel>Level3</WarningLevel>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <AdditionalIncludeDirectories>$(ProjectDir)npcap\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
@@ -235,9 +235,9 @@
     </ResourceCompile>
     <Link>
       <AdditionalOptions>/FORCE:MULTIPLE %(AdditionalOptions)</AdditionalOptions>
-      <OutputFile>.\x64\Release/PPPOE.exe</OutputFile>
+      <OutputFile>.\build\x64\Release/PPPOE.exe</OutputFile>
       <SuppressStartupBanner>true</SuppressStartupBanner>
-      <ProgramDatabaseFile>.\x64\Release/PPPOE.pdb</ProgramDatabaseFile>
+      <ProgramDatabaseFile>.\build\x64\Release/PPPOE.pdb</ProgramDatabaseFile>
       <SubSystem>Console</SubSystem>
       <RandomizedBaseAddress>false</RandomizedBaseAddress>
       <DataExecutionPrevention />
@@ -247,7 +247,7 @@
     </Link>
     <Bscmake>
       <SuppressStartupBanner>true</SuppressStartupBanner>
-      <OutputFile>.\x64\Release/PPPOE.bsc</OutputFile>
+      <OutputFile>.\build\x64\Release/PPPOE.bsc</OutputFile>
     </Bscmake>
   </ItemDefinitionGroup>
   <ItemGroup>

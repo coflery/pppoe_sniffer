@@ -1,6 +1,5 @@
 # 构建目录
-Debug/
-Release/
+build/
 
 # Visual Studio 用户特定文件
 *.vcxproj.user
