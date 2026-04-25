@@ -8,8 +8,8 @@
 u_short PPP_LCP_MRU	= 1480; // 封包最大接收长度
 
 const int ETHER_HDRLEN = sizeof(ETHERNET_HEADER); // 以太网首部
-const int PPPOED_HDRLEN = sizeof(PPPOED_HEADER); // PPPOED首部
-const int PPPOED_PPP_HDRLEN = sizeof(PPP_HEADER);       // PPP首部
+const int PPPOED_HDRLEN = sizeof(PPPOED_HEADER);  // PPPOED首部
+const int PPPOED_PPP_HDRLEN = sizeof(PPP_HEADER); // PPP首部
 
 u_char packetPPPoE[100] = {0}; //构造的封包
 u_short packetPPPoELen = 0; // 构造的封包的实际长度
@@ -34,8 +34,7 @@ pcap_t *devicehandle = NULL;
 bool processFile = false;
 bool FoundUsrNamePASSWD = false;
 bool ShowMsg = true;
-char szFileName[MAX_PATH] = {0};
-bool use_TEST_MAC = true;
+bool use_TEST_MAC = false;
 bool FirstCallGetLoaclMac = true;
 int vlan_id = -1;           // VLAN ID (-1 = no VLAN, auto-detect)
 bool use_vlan = false;      // 是否使用VLAN标签
@@ -66,6 +65,12 @@ bool ParseCommandLine(int argc, char **argv)
 				printf("错误: -v 参数需要指定 VLAN ID\n");
 				return false;
 			}
+		}
+		else if (strcmp(argv[i], "--mac") == 0 || strcmp(argv[i], "-m") == 0)
+		{
+			use_TEST_MAC = true;
+			printf("使用虚拟MAC地址: %.2X-%.2X-%.2X-%.2X-%.2X-%.2X\n",
+				hostmac[0], hostmac[1], hostmac[2], hostmac[3], hostmac[4], hostmac[5]);
 		}
 	}
 	return true;
@@ -984,26 +989,6 @@ void WriteInfoToFile()
 		sprintf_s(PassWordBuffer, sizeof(PassWordBuffer), "@echo 密码: %s>> %s 2>nul",password,LogFileName);
 		system(PassWordBuffer);
 		printf("记录到文件成功!\t");
-	}
-}
-
-// 根据程序文件名来决定使用的网卡物理地址
-void UseMacByFileName()
-{
-	char szFullPath[MAX_PATH] = {0};
-	GetModuleFileName(NULL,szFullPath,MAX_PATH);
-	char* pszModuleFileName = strrchr(szFullPath, TEXT('\\'));
-	pszModuleFileName[0]='\0';
-	sprintf_s(szFileName, sizeof(szFileName), "%s",pszModuleFileName+1);
-	// 文件名没找到 "zpf", 则使用测试用的MAC地址, 比较通用
-	if (!strstr(szFileName,"zpf"))
-	{
-		use_TEST_MAC = true;
-		//u_char* lmac;
-	}
-	else
-	{
-		use_TEST_MAC = false;
 	}
 }
 

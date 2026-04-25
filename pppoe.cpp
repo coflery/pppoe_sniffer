@@ -1,36 +1,40 @@
 ﻿#include "common.h"
 
 extern bool ShowMsg;
-extern char szFileName[MAX_PATH];
 extern pcap_t *devicehandle;
 extern bool FoundUsrNamePASSWD;
 extern bool processFile;
 extern bool use_TEST_MAC;
 extern int vlan_id;
 // 使用方法
-void usage()
-{	
+void usage(const char* progName)
+{
 	// 不显示对收到封包的分析过程
 	ShowMsg = false;
-	// 根据文件名是否包含字串"zpf",来决定使用那个MAC地址
-	UseMacByFileName();
+
+	// 提取文件名（去除路径）
+	const char* fileName = progName;
+	const char* lastSlash = strrchr(progName, '\\');
+	const char* lastBackslash = strrchr(progName, '/');
+	if (lastSlash > lastBackslash)
+		fileName = lastSlash + 1;
+	else if (lastBackslash != NULL)
+		fileName = lastBackslash + 1;
 
 	printf("\t\tPPPOE密码嗅探器 v1.0");
 	printf("\n    本程序可以嗅探到网络中使用PPPOE拨号的用户名和密码.");
 	printf("\n比如(本机或局域网中)xDSL宽带连接,宽带数字电视机顶盒,路由器等保存的帐号密码.");
 	printf("\n\t\t\t\t版权 (C) 2008 zhupf (xzfff@126.com).");
 	printf("\n使用方法:\t(使用前必须安装[Npcap],建议从官网下载最新版)");
-	printf("\n\t1.注意文件名,看下方注意事项.当前是: %s",szFileName);
+	printf("\n\t1.默认使用本机网卡真实MAC地址");
 	printf("\n\t2.通过下面的列出的方法运行本程序.");
-	printf("\n\t  <1> PPPOE 直接双击运行,选一个网卡后,监听网络");
-	printf("\n\t  <2> PPPOE 带VLAN参数运行: PPPOE.exe -v <vlan_id>");
-	printf("\n\t  <3> 分析本地封包文件. 拖动封包文件到程序文件上,");
-	printf("\n\t      或命令行: \"%s\" \"file.pcap\".",szFileName);
+	printf("\n\t  <1> %s 直接运行,选一个网卡后监听网络", fileName);
+	printf("\n\t  <2> %s -v <vlan_id> 带VLAN参数运行", fileName);
+	printf("\n\t  <3> %s -m 使用虚拟MAC", fileName);
+	printf("\n\t  <4> %s file.pcap 分析本地封包文件", fileName);
 	printf("\n\t3.打开拨号程序(宽带连接,可以是网络中的某电脑),某个宽带机顶盒或路由器.");
 	printf("\n\t  如果直接连接两机,连接机顶盒或连接路由器,须用[双机互联的网线].");
-	printf("\n注意: 若文件名包含字串\"zpf\",则嗅探过程使用本机网卡物理地址.");
-	printf("\n      否则使用虚拟网卡地址.比较通用,可以获取本机的宽带密码.");
-	printf("\n      支持VLAN标签: 自动侦测或手动指定VLAN ID.");
+	printf("\n\t4.支持VLAN标签: 自动侦测或手动指定VLAN ID.");
 	printf("\n-----------------------------------------------------------------\n");
 }
 
@@ -51,7 +55,7 @@ int main(int argc, char **argv)
 	time_t local_tv_sec;
 
 	// 使用方法
-	usage();
+	usage(argv[0]);
 
 	// 解析命令行参数
 	if (!ParseCommandLine(argc, argv))
@@ -279,7 +283,7 @@ int main(int argc, char **argv)
 			// 是否已经找到了用户名和密码,是就退出
 			if (FoundUsrNamePASSWD)
 			{
-				printf("\n获得用户名和密码成功!  ");
+				printf("\n获得用户名和密码成功!");
 				break;
 			}
 			if (ShowMsg)

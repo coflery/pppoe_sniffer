@@ -104,11 +104,11 @@ LCP_OPT           # LCP 配置选项
 
 ### MAC 地址行为
 
-程序根据文件名使用两种 MAC 模式：
-- **测试 MAC**(默认)：使用硬编码 MAC `01:01:01:02:02:02`
-- **真实 MAC**：如果可执行文件名包含 "zpf"，则使用实际网卡 MAC
+程序通过命令行参数选择 MAC 模式：
+- **真实 MAC**(默认)：使用本机网卡物理地址
+- **虚拟 MAC**：使用 `-m` 或 `--mac` 参数，使用硬编码 MAC `01:01:01:02:02:02`
 
-这由 `UseMacByFileName()` 和 `use_TEST_MAC` 标志控制。
+这由 `use_TEST_MAC` 标志控制。
 
 ## 使用方法
 
@@ -127,6 +127,13 @@ PPPOE.exe
 # 手动指定 VLAN ID
 PPPOE.exe -v 100
 PPPOE.exe --vlan 100
+```
+
+**使用虚拟 MAC 地址：**
+```bash
+# 使用虚拟MAC（默认使用真实MAC）
+PPPOE.exe -m
+PPPOE.exe --mac
 ```
 
 **离线分析：**

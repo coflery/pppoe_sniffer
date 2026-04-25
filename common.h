@@ -167,9 +167,6 @@ void ProcessPktdata(const u_char *pkt_data);
 // 记录用户名和密码到文件
 void WriteInfoToFile();
 
-// 根据程序文件名来决定使用的网卡物理地址
-void UseMacByFileName();
-
 // 解析命令行参数
 bool ParseCommandLine(int argc, char **argv);
 
