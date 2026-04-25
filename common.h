@@ -2,6 +2,8 @@
 #ifndef _COMMON_
 #define _COMMON_
 
+#define VERSION "1.4"
+
 #define TEST_MAC
 
 #include <iostream>

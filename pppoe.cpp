@@ -6,6 +6,7 @@ extern bool FoundUsrNamePASSWD;
 extern bool processFile;
 extern bool use_TEST_MAC;
 extern int vlan_id;
+extern char* capture_file;
 // 使用方法
 void usage(const char* progName)
 {
@@ -21,8 +22,8 @@ void usage(const char* progName)
 	else if (lastBackslash != NULL)
 		fileName = lastBackslash + 1;
 
-	printf("\t\tPPPOE密码嗅探器 v1.0");
-	printf("\n    本程序可以嗅探到网络中使用PPPOE拨号的用户名和密码.");
+	printf("\tPPPOE密码嗅探器 v%s", VERSION);
+	printf("\n 本程序可以嗅探到网络中使用PPPOE拨号的用户名和密码.");
 	printf("\n比如(本机或局域网中)xDSL宽带连接,宽带数字电视机顶盒,路由器等保存的帐号密码.");
 	printf("\n\t\t\t\t版权 (C) 2008 zhupf (xzfff@126.com).");
 	printf("\n使用方法:\t(使用前必须安装[Npcap],建议从官网下载最新版)");
@@ -31,7 +32,7 @@ void usage(const char* progName)
 	printf("\n\t  <1> %s 直接运行,选一个网卡后监听网络", fileName);
 	printf("\n\t  <2> %s -v <vlan_id> 带VLAN参数运行", fileName);
 	printf("\n\t  <3> %s -m 使用虚拟MAC", fileName);
-	printf("\n\t  <4> %s file.pcap 分析本地封包文件", fileName);
+	printf("\n\t  <4> %s -f file.pcap 分析本地封包文件", fileName);
 	printf("\n\t3.打开拨号程序(宽带连接,可以是网络中的某电脑),某个宽带机顶盒或路由器.");
 	printf("\n\t  如果直接连接两机,连接机顶盒或连接路由器,须用[双机互联的网线].");
 	printf("\n\t4.支持VLAN标签: 自动侦测或手动指定VLAN ID.");
@@ -63,7 +64,7 @@ int main(int argc, char **argv)
 		return -1;
 	}
 
-	if(argc < 2 || (vlan_id != -1 && argc == 3))
+	if(argc < 2 || (vlan_id != -1 && argc == 3) || (use_TEST_MAC && argc == 2))
 	{
 		// 获取设备列表
 		if(pcap_findalldevs(&alldevs, errbuf) == -1)
@@ -97,10 +98,10 @@ int main(int argc, char **argv)
 		
 		if(i==0)
 		{
-			printf("\n找不到设备! Npcap 必须安装.\n");
+			printf("\n找不到设备! Npcap 必须安装\n");
 			return -1;
 		}
-		printf("要使用第几个(1-%d): ",i);
+		printf("要使用第几个(1-%d): \n",i);
 		
 		//------------------------------------
 		// 从键盘读取选择的网卡编号
@@ -162,7 +163,7 @@ int main(int argc, char **argv)
 		int datalink = pcap_datalink(adhandle);
 		if(datalink != DLT_EN10MB && datalink != DLT_LINUX_SLL)
 		{
-			fprintf(stderr,"\n本程序只能工作于以太网络.\n");
+			fprintf(stderr,"\n本程序只能工作于以太网络\n");
 			// 释放设备列表
 			pcap_freealldevs(alldevs);
 			wait2exit();
@@ -185,7 +186,7 @@ int main(int argc, char **argv)
 		}
 		if (pcap_compile(adhandle, &fcode, "ether proto 0x8863 or ether proto 0x8864 or (vlan and (ether proto 0x8863 or ether proto 0x8864))", 1, netmask) < 0)
 		{
-			fprintf(stderr,"\n不能编译包过滤器,检查过滤器语法.\n");
+			fprintf(stderr,"\n不能编译包过滤器,检查过滤器语法\n");
 			// 释放设备列表
 			pcap_freealldevs(alldevs);
 			wait2exit();
@@ -193,7 +194,7 @@ int main(int argc, char **argv)
 		}    
 		if (pcap_setfilter(adhandle, &fcode) < 0)
 		{
-			fprintf(stderr,"\n设置过滤器错误.\n");
+			fprintf(stderr,"\n设置过滤器错误\n");
 			// 释放设备列表
 			pcap_freealldevs(alldevs);
 			wait2exit();
@@ -201,7 +202,7 @@ int main(int argc, char **argv)
 		}
 		//------------------------------------
 
-		printf("嗅探器 监听于: %s...\n", d->description);
+		printf("嗅探器监听于: %s..\n", d->description);
 		// 不需要设备列表时,释放它
 		pcap_freealldevs(alldevs);
 
@@ -241,16 +242,14 @@ int main(int argc, char **argv)
 	   pcap_close(adhandle);  
 
 	}
-	else if ((argc == 2 && vlan_id == -1) || (argc == 4 && vlan_id != -1))
+	else if (processFile)
 	{
-		processFile = true;
-		char* pcapFile = (argc == 2) ? argv[1] : argv[3];
 		// 打开抓包文件
-		if ((fp = pcap_open_offline(pcapFile,			// name of the device
+		if ((fp = pcap_open_offline(capture_file,
 			errbuf					// error buffer
 			)) == NULL)
 		{
-			fprintf(stderr,"\n打不开文件 %s.\n", pcapFile);
+			fprintf(stderr,"\n打不开文件 %s\n", capture_file);
 			wait2exit();
 			return -1;
 		}
@@ -259,7 +258,7 @@ int main(int argc, char **argv)
 		int datalink = pcap_datalink(fp);
 		if(datalink != DLT_EN10MB && datalink != DLT_LINUX_SLL)
 		{
-			fprintf(stderr,"\n本程序只能工作于以太网络.\n");
+			fprintf(stderr,"\n本程序只能工作于以太网络\n");
 			wait2exit();
 			return -1;
 		}

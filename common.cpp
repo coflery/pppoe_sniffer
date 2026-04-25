@@ -38,6 +38,7 @@ bool use_TEST_MAC = false;
 bool FirstCallGetLoaclMac = true;
 int vlan_id = -1;           // VLAN ID (-1 = no VLAN, auto-detect)
 bool use_vlan = false;      // 是否使用VLAN标签
+char* capture_file = NULL;  // 指定的pcap文件路径
 //-------------------------------
 
 // 解析命令行参数
@@ -66,11 +67,26 @@ bool ParseCommandLine(int argc, char **argv)
 				return false;
 			}
 		}
-		else if (strcmp(argv[i], "--mac") == 0 || strcmp(argv[i], "-m") == 0)
+		else if (strcmp(argv[i], "-m") == 0 || strcmp(argv[i], "--mac") == 0)
 		{
 			use_TEST_MAC = true;
 			printf("使用虚拟MAC地址: %.2X-%.2X-%.2X-%.2X-%.2X-%.2X\n",
 				hostmac[0], hostmac[1], hostmac[2], hostmac[3], hostmac[4], hostmac[5]);
+		}
+		else if (strcmp(argv[i], "-f") == 0 || strcmp(argv[i], "--file") == 0)
+		{
+			if (i + 1 < argc)
+			{
+				capture_file = argv[i + 1];
+				processFile = true;
+				printf("分析本地封包文件: %s\n", capture_file);
+				i++; // 跳过下一个参数
+			}
+			else
+			{
+				printf("错误: -f 参数需要指定文件路径\n");
+				return false;
+			}
 		}
 	}
 	return true;
@@ -181,7 +197,7 @@ bool GetLoaclMac(int& idx, const char* adapterName) // u_char** localmac
 		{
 			if (strstr(adapterName, pAdapter->AdapterName) != NULL)
 			{
-				printf("找到可用网卡: \t%s\n", pAdapter->Description);
+				printf("找到可用网卡: %s\n", pAdapter->Description);
 				memcpy(hostmac, pAdapter->Address, 6);
 				break;
 			}
@@ -205,7 +221,7 @@ bool GetLoaclMac(int& idx, const char* adapterName) // u_char** localmac
 			}
 			if (idx == 0 || idx == realIdx)
 			{
-				printf("找到可用网卡: \t%s\n", pAdapter->Description);
+				printf("找到可用网卡: %s\n", pAdapter->Description);
 				memcpy(hostmac, pAdapter->Address, 6);
 				idx = realIdx;
 				break;
@@ -349,7 +365,7 @@ bool SendPacket()
 	{
 		if (ShowMsg)
 		{
-			fprintf(stderr,"\n发送封包成功! 发送了 %d 字节数据!", packetPPPoELen);
+			fprintf(stderr,"\n发送封包成功! 发送了 %d 字节数据!\n", packetPPPoELen);
 		}
 	}
 	// 使用监听那个设备,不用关闭
@@ -1041,8 +1057,7 @@ bool GetDeviceToUse(int& DeviceNbr)
 						if (ch>='0'&&ch<='9')
 						{
 							DeviceNbr = ch-48;
-							printf("你选了<%d>号网卡.",DeviceNbr);
-							printf("\t准备嗅探,请按操作方法第3步操作后稍等.\n");
+							printf("你选了<%d>号网卡\n",DeviceNbr);
 							bReadFinish = true;
 							break;
 						}
