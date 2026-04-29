@@ -1,4 +1,4 @@
-﻿#include "common.h"
+#include "common.h"
 
 extern bool ShowMsg;
 extern pcap_t *devicehandle;
@@ -15,18 +15,27 @@ void usage(const char* progName)
 
 	// 提取文件名（去除路径）
 	const char* fileName = progName;
-	const char* lastSlash = strrchr(progName, '\\');
-	const char* lastBackslash = strrchr(progName, '/');
+	const char* lastSlash = strrchr(progName, '/');
+#ifdef _WIN32
+	const char* lastBackslash = strrchr(progName, '\\');
 	if (lastSlash > lastBackslash)
 		fileName = lastSlash + 1;
 	else if (lastBackslash != NULL)
 		fileName = lastBackslash + 1;
+#else
+	if (lastSlash != NULL)
+		fileName = lastSlash + 1;
+#endif
 
 	printf("\tPPPOE密码嗅探器 v%s", VERSION);
 	printf("\n 本程序可以嗅探到网络中使用PPPOE拨号的用户名和密码.");
 	printf("\n比如(本机或局域网中)xDSL宽带连接,宽带数字电视机顶盒,路由器等保存的帐号密码.");
+#ifdef _WIN32
 	printf("\n\t\t\t\t版权 (C) 2008 zhupf (xzfff@126.com).");
 	printf("\n使用方法:\t(使用前必须安装[Npcap],建议从官网下载最新版)");
+#else
+	printf("\n使用方法:");
+#endif
 	printf("\n\t1.默认使用本机网卡真实MAC地址");
 	printf("\n\t2.通过下面的列出的方法运行本程序.");
 	printf("\n\t  <1> %s 直接运行,选一个网卡后监听网络", fileName);
@@ -78,13 +87,17 @@ int main(int argc, char **argv)
 		for(d=alldevs; d; d=d->next,i++)
 		{
 			//printf("%d. %s", ++i, d->name);
+			// Windows: 跳过虚拟拨号适配器
+#ifdef _WIN32
+			if (d->description && strcmp(d->description,"Adapter for generic dialup and VPN capture") == 0)
+			{
+				i--;
+				continue;
+			}
+#endif
+			// Linux 下 pcap_findalldevs 可能 description 为 NULL, 用 name 代替
 			if (d->description)
 			{
-				if (0 == strcmp(d->description,"Adapter for generic dialup and VPN capture"))
-				{
-					i--;
-					continue;
-				}
 				printf("\t%d. %s\n", i, d->description);
 				//printf("\t%d. %s\n", i, d->name);
 			}
@@ -95,14 +108,14 @@ int main(int argc, char **argv)
 			}
 		}
 		i--;
-		
+
 		if(i==0)
 		{
-			printf("\n找不到设备! Npcap 必须安装\n");
+			printf("\n找不到设备! 请检查网络驱动或 Npcap/libpcap 是否安装\n");
 			return -1;
 		}
 		printf("要使用第几个(1-%d): \n",i);
-		
+
 		//------------------------------------
 		// 从键盘读取选择的网卡编号
 		if (!GetDeviceToUse(inum))
@@ -117,11 +130,13 @@ int main(int argc, char **argv)
 		// 跳转到所选适配器
 		for(d=alldevs, i=1; ; d=d->next, i++)
 		{
-			if (0 == strcmp(d->description,"Adapter for generic dialup and VPN capture"))
+#ifdef _WIN32
+			if (d->description && strcmp(d->description,"Adapter for generic dialup and VPN capture") == 0)
 			{
 				i--;
 				continue;
 			}
+#endif
 			if (static_cast<int>(i) >= inum)
 			{
 				break;
@@ -140,17 +155,17 @@ int main(int argc, char **argv)
 		}
 		// 上来就选第二个
 		//d=alldevs->next;
-    
+
 		// 打开适配器
 		if ((adhandle= pcap_open_live(d->name,	// name of the device
 								 65536,			// portion of the packet to capture. 
-												// 65536 grants that the whole packet will be captured on all the MACs.
+								 				// 65536 grants that the whole packet will be captured on all the MACs.
 								 1,				// promiscuous mode (nonzero means promiscuous)
 								 1000,			// read timeout
 								 errbuf			// error buffer
-								 )) == NULL)
+								)) == NULL)
 		{
-			fprintf(stderr,"\n打不开网卡. Npcap不支持 %s \n", d->name);
+			fprintf(stderr,"\n打不开网卡. 权限不足或驱动不支持 %s \n", d->name);
 			// 释放设备列表
 			pcap_freealldevs(alldevs);
 			wait2exit();
@@ -169,20 +184,23 @@ int main(int argc, char **argv)
 			wait2exit();
 			return -1;
 		}
-		
+
 		//------------------------------------
 		// 过滤封包,将直接丢弃不是PPPoE的封包
 		bpf_u_int32 netmask;
 		struct bpf_program fcode;
 		if (d->addresses != NULL)
 		{
-			// 获取接口第一个地址的掩码
+#ifdef _WIN32
 			netmask=((struct sockaddr_in *)(d->addresses->netmask))->sin_addr.S_un.S_addr;
+#else
+			netmask=((struct sockaddr_in *)(d->addresses->netmask))->sin_addr.s_addr;
+#endif
 		}
 		else
-		{        
+		{
 			// 如果这个接口没有地址,那么我们假设这个接口在C类网络中
-			netmask=0xffffff; 
+			netmask=0xffffff;
 		}
 		if (pcap_compile(adhandle, &fcode, "ether proto 0x8863 or ether proto 0x8864 or (vlan and (ether proto 0x8863 or ether proto 0x8864))", 1, netmask) < 0)
 		{
@@ -191,7 +209,7 @@ int main(int argc, char **argv)
 			pcap_freealldevs(alldevs);
 			wait2exit();
 			return -1;
-		}    
+		}
 		if (pcap_setfilter(adhandle, &fcode) < 0)
 		{
 			fprintf(stderr,"\n设置过滤器错误\n");
@@ -202,22 +220,30 @@ int main(int argc, char **argv)
 		}
 		//------------------------------------
 
-		printf("嗅探器监听于: %s..\n", d->description);
+#ifdef _WIN32
+		printf("嗅探器监听于: %s..\n", d->description ? d->description : d->name);
+#else
+		printf("嗅探器监听于: %s..\n", d->name);
+#endif
 		// 不需要设备列表时,释放它
 		pcap_freealldevs(alldevs);
 
 		// 取得封包
 		while((res = pcap_next_ex( adhandle, &header, &pkt_data)) >= 0){
-			
+
 			if(res == 0)
 				// 超时
 				continue;
-			
+
 			// 转换时间格式到可读的格式
 			if (ShowMsg)
 			{
 				local_tv_sec = header->ts.tv_sec;
+#ifdef _WIN32
 				localtime_s(&ltime, &local_tv_sec);
+#else
+				localtime_r(&local_tv_sec, &ltime);
+#endif
 				strftime( timestr, sizeof timestr, "%H:%M:%S", &ltime);
 				printf("\n%s,%.6d len:%d. ", timestr, header->ts.tv_usec, header->len);
 			}
@@ -232,14 +258,14 @@ int main(int argc, char **argv)
 				break;
 			}
 		}
-		
+
 		if(res == -1){
 			printf("读取封包错误: %s\n", pcap_geterr(adhandle));
 			wait2exit();
 			return -1;
 		}
-		
-	   pcap_close(adhandle);  
+
+	   pcap_close(adhandle);
 
 	}
 	else if (processFile)
@@ -271,14 +297,18 @@ int main(int argc, char **argv)
 			if (ShowMsg)
 			{
 				local_tv_sec = header->ts.tv_sec;
+#ifdef _WIN32
 				localtime_s(&ltime, &local_tv_sec);
+#else
+				localtime_r(&local_tv_sec, &ltime);
+#endif
 				strftime( timestr, sizeof timestr, "%H:%M:%S", &ltime);
 				printf("\n%s,%.6d len:%d. ", timestr, header->ts.tv_usec, header->len);
 			}
 
 			// 处理从文件中获得的封包
 			ProcessPktdata(pkt_data);
-			
+
 			// 是否已经找到了用户名和密码,是就退出
 			if (FoundUsrNamePASSWD)
 			{
@@ -287,18 +317,18 @@ int main(int argc, char **argv)
 			}
 			if (ShowMsg)
 			{
-				printf("\n\n");	
+				printf("\n\n");
 			}
 		}
-		
+
 		if (res == -1)
 		{
 			printf("读取封包错误: %s\n", pcap_geterr(fp));
 		}
-		
+
 		pcap_close(fp);
 	}
-	
+
 	wait2exit();
 	return 0;
 }

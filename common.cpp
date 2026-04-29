@@ -1,4 +1,4 @@
-﻿#include "common.h"
+#include "common.h"
 
 
 
@@ -11,7 +11,7 @@ const int ETHER_HDRLEN = sizeof(ETHERNET_HEADER); // 以太网首部
 const int PPPOED_HDRLEN = sizeof(PPPOED_HEADER);  // PPPOED首部
 const int PPPOED_PPP_HDRLEN = sizeof(PPP_HEADER); // PPP首部
 
-u_char packetPPPoE[100] = {0}; //构造的封包
+u_char packetPPPoE[2048] = {0}; //构造的封包
 u_short packetPPPoELen = 0; // 构造的封包的实际长度
 
 // 保存本机MAC地址,如果是测试则使用下面的MAC地址
@@ -134,21 +134,9 @@ u_short GetActualEtherType(const u_char *pkt_data)
 
 	return ether_type;
 }
-/*
-Adapter Name:   {C0B9A1E0-020E-4BE7-98C0-1EB53A115676}
-Adapter Desc:   Intel(R) 82566MM Gigabit Network Connection
-Adapter Addr:   1346028
-IP Address:     192.168.0.188
-Adapter Name:   {1B7325C4-8870-4BE8-A30D-7AA95F7DEC7F}
-Adapter Desc:   VMware Virtual Ethernet Adapter for VMnet1
-Adapter Addr:   1346668
-IP Address:     192.168.19.1
-Adapter Name:   {5A3EDF4B-F731-4CED-A90E-250129E4F50F}
-Adapter Desc:   VMware Virtual Ethernet Adapter for VMnet8
-Adapter Addr:   1347308
-IP Address:     192.168.72.1
-*/
-bool GetLoaclMac(int& idx, const char* adapterName) // u_char** localmac
+
+// 跨平台获取本地MAC地址
+bool GetLoaclMac(int& idx, const char* adapterName)
 {
 	// 只需调用一次
 	if (!FirstCallGetLoaclMac)
@@ -166,6 +154,8 @@ bool GetLoaclMac(int& idx, const char* adapterName) // u_char** localmac
 		return true;
 	}
 
+#ifdef _WIN32
+	// Windows: GetAdaptersInfo
 	DWORD             err;
 	DWORD             adapterinfosize=0;
 	PIP_ADAPTER_INFO	padapterinfo;
@@ -210,9 +200,12 @@ bool GetLoaclMac(int& idx, const char* adapterName) // u_char** localmac
 		for (pAdapter = padapterinfo; pAdapter != NULL; pAdapter = pAdapter->Next)
 		{
 			char descBuffer[MAX_ADAPTER_DESCRIPTION_LENGTH + 4];
-			strcpy_s(descBuffer, sizeof(descBuffer), (char*)pAdapter->Description);
-			_strlwr_s(descBuffer, sizeof(descBuffer));
-			string desc = string(descBuffer);
+			strncpy(descBuffer, (char*)pAdapter->Description, sizeof(descBuffer) - 1);
+			descBuffer[sizeof(descBuffer) - 1] = '\0';
+			string desc = descBuffer;
+			// 转小写
+			for (size_t i = 0; i < desc.size(); i++)
+				desc[i] = tolower(desc[i]);
 			if (string::npos != desc.find("vmware") ||
 				string::npos != desc.find("virtual") ||
 				string::npos != desc.find("generic"))
@@ -231,6 +224,123 @@ bool GetLoaclMac(int& idx, const char* adapterName) // u_char** localmac
 	}
 
 	GlobalFree(padapterinfo);
+
+#else
+	// Linux: ioctl SIOCGIFHWADDR
+	int fd;
+	struct ifreq ifr;
+
+	fd = socket(AF_INET, SOCK_DGRAM, 0);
+	if (fd < 0)
+	{
+		perror("socket");
+		return false;
+	}
+
+	if (adapterName != NULL && strlen(adapterName) > 0)
+	{
+		// 从 adapterName 提取接口名 (pcap 设备名直接使用)
+		strncpy(ifr.ifr_name, adapterName, IFNAMSIZ - 1);
+		ifr.ifr_name[IFNAMSIZ - 1] = '\0';
+
+		if (ioctl(fd, SIOCGIFHWADDR, &ifr) < 0)
+		{
+			perror("ioctl SIOCGIFHWADDR");
+			close(fd);
+			return false;
+		}
+
+		// Linux SIOCGIFHWADDR 返回的硬件地址在 ifr_hwaddr 中
+		// sa_family 在 sa_data 前, 但不同实现不同
+		// 使用 ifr_ifru 来安全访问
+		struct ifreq* p = &ifr;
+		if (p->ifr_hwaddr.sa_family != ARPHRD_ETHER)
+		{
+			// 非以太网类型, 尝试直接复制
+		}
+		memcpy(hostmac, p->ifr_hwaddr.sa_data, 6);
+		printf("找到可用网卡: %s\n", ifr.ifr_name);
+	}
+	else
+	{
+		// 按索引查找 (兼容旧逻辑)
+		// 注意: Linux 下按索引找网卡比较麻烦, 这里简化处理
+		// 需要遍历 /sys/class/net/ 找到非虚拟网卡
+		DIR* dir = opendir("/sys/class/net");
+		if (!dir)
+		{
+			perror("opendir /sys/class/net");
+			close(fd);
+			return false;
+		}
+
+		struct dirent* entry;
+		int realIdx = 1;
+		bool found = false;
+
+		while ((entry = readdir(dir)) != NULL)
+		{
+			if (entry->d_name[0] == '.')
+				continue;
+
+			// 检查是否是虚拟网卡 (跳过 lo, docker, veth, br 等)
+			const char* name = entry->d_name;
+			if (strncmp(name, "lo", 2) == 0 ||
+				strncmp(name, "docker", 6) == 0 ||
+				strncmp(name, "veth", 4) == 0 ||
+				strncmp(name, "br-", 3) == 0 ||
+				strncmp(name, "vir", 3) == 0 ||
+				strncmp(name, "tap", 3) == 0)
+			{
+				continue;
+			}
+
+			// 检查是否是物理网卡 (存在 dev_id 或 phys 目录)
+			// 如果不存在, 也当作可用网卡
+			if (idx == 0 || idx == realIdx)
+			{
+				strncpy(ifr.ifr_name, name, IFNAMSIZ - 1);
+				ifr.ifr_name[IFNAMSIZ - 1] = '\0';
+
+				if (ioctl(fd, SIOCGIFHWADDR, &ifr) == 0)
+				{
+					memcpy(hostmac, ifr.ifr_hwaddr.sa_data, 6);
+					printf("找到可用网卡: %s\n", name);
+					idx = realIdx;
+					found = true;
+					break;
+				}
+			}
+			realIdx++;
+		}
+
+		if (!found && idx == 0)
+		{
+			// 没找到, 取第一个可用的
+			rewinddir(dir);
+			while ((entry = readdir(dir)) != NULL)
+			{
+				if (entry->d_name[0] == '.')
+					continue;
+				const char* name = entry->d_name;
+				if (strncmp(name, "lo", 2) == 0)
+					continue;
+				strncpy(ifr.ifr_name, name, IFNAMSIZ - 1);
+				ifr.ifr_name[IFNAMSIZ - 1] = '\0';
+				if (ioctl(fd, SIOCGIFHWADDR, &ifr) == 0)
+				{
+					memcpy(hostmac, ifr.ifr_hwaddr.sa_data, 6);
+					printf("找到可用网卡: %s\n", name);
+					break;
+				}
+			}
+		}
+
+		closedir(dir);
+	}
+
+	close(fd);
+#endif
 
 	printf("嗅探器使用网卡地址: %.2X-%.2X-%.2X-%.2X-%.2X-%.2X\n",
 		hostmac[0],hostmac[1],hostmac[2],hostmac[3],hostmac[4],hostmac[5]);
@@ -285,7 +395,7 @@ void build_PPPOE_PACKET(PPPOE_STATUS status, const u_char *pkt_data)
 	// 检查并处理TAG
 	u_short& s_pppoe_payload = s_pppoed_header->pppoe_payload; // 要发送的tag长度
 	u_short pppoe_tag_len = ntohs(r_pppoed_header->pppoe_payload); // 收到tag的长度
-	
+
 	u_short s_tag_add_len = 0, tag_len = 0;
 	for (int i = 0; i < pppoe_tag_len; i+=tag_len)
 	{
@@ -410,7 +520,7 @@ void build_PAP_AUTH_CREQ_PACKET()
 	s_ppp_header->code = LCP_CREQ;
 	s_ppp_header->identifier = Identifier_creq_auth;
 	s_ppp_header->length = htons(0x0000); // 暂时未知, 将根据 ppp_opt 随时修改
-	
+
 	u_char* s_opt_data = (u_char*)&packetPPPoE[ETHER_HDRLEN + vlan_offset + PPPOED_HDRLEN + PPPOED_PPP_HDRLEN];
 
 	packetPPPoELen = 0;
@@ -499,12 +609,22 @@ void processPPP_PAP(PPP_PAP_CODE pap_code, const u_char *pkt_data)
 			}
 			u_char* r_opt_data = (u_char*)&pkt_data[eth_offset + PPPOED_HDRLEN + PPPOED_PPP_HDRLEN];
 			usernamelen = r_opt_data[0];
-			memcpy(username,r_opt_data+1,usernamelen);
+			if (usernamelen == 0)
+				break;
+			// Verify that the username field doesn't extend past the end of the packet
+			if (usernamelen + 1 > opt_len)
+				break;
+			memcpy(username, r_opt_data + 1, usernamelen);
+			username[usernamelen] = '\0';
 			printf("\n获得 用户名和密码, ");
-			printf("用户名: %s  ",username);
-			passwordlen = r_opt_data[usernamelen+1];
-			memcpy(password,r_opt_data+usernamelen+2,passwordlen);
-			printf("密码: %s\n",password);
+			printf("用户名: %s  ", username);
+			passwordlen = r_opt_data[usernamelen + 1];
+			// Verify that the password field doesn't extend past the end of the packet
+			if (usernamelen + 1 + passwordlen > opt_len)
+				break;
+			memcpy(password, r_opt_data + usernamelen + 2, passwordlen);
+			password[passwordlen] = '\0';
+			printf("密码: %s\n", password);
 			FoundUsrNamePASSWD = true;
 		}
 		break;
@@ -683,7 +803,7 @@ void processPPP_LCP(PPP_LCP_CODE lcp_code, const u_char *pkt_data)
 				PPP_LCP_MRU = opt_MRU;
 				// 构造并发送拒绝封包
 				build_LCP_ACK_PACKET(pkt_data,false);
-				SendPacket();	
+				SendPacket();
 			}
 
 			if (!LCP_creq_auth_CACK)
@@ -771,7 +891,7 @@ void check_PPPOED(const u_char *pkt_data)
 	switch (pppoed_type)
 	{
 	case PPPOE_PADI:
-		{	
+		{
 			if (ShowMsg)
 			{
 				printf("PPPOE_PADI");
@@ -985,69 +1105,97 @@ void ProcessPktdata(const u_char *pkt_data)
 	}
 }
 
+// 获取可执行文件所在目录
+void GetExeDir(char* dir, size_t maxLen)
+{
+#ifdef _WIN32
+	GetModuleFileName(NULL, dir, maxLen);
+	char* p = strrchr(dir, '\\');
+	if (p) p[0] = '\0';
+#else
+	ssize_t len = readlink("/proc/self/exe", dir, maxLen - 1);
+	if (len > 0)
+	{
+		dir[len] = '\0';
+		char* p = strrchr(dir, '/');
+		if (p) p[0] = '\0';
+	}
+	else
+	{
+		strncpy(dir, ".", maxLen - 1);
+		dir[maxLen - 1] = '\0';
+	}
+#endif
+}
+
 // 记录用户名和密码到文件
 void WriteInfoToFile()
 {
 	if (FoundUsrNamePASSWD)
 	{
-		char szFullPath[MAX_PATH];
-		GetModuleFileName(NULL,szFullPath,MAX_PATH);
-		char* pszModuleFileName = strrchr(szFullPath, TEXT('\\'));
-		pszModuleFileName[0]='\0';
+		char szFullPath[1024];
+		GetExeDir(szFullPath, sizeof(szFullPath));
 
-		char LogFileName[MAX_PATH];
-		sprintf_s(LogFileName, sizeof(LogFileName), "\"%s\\PPPoE_帐号密码.txt\"",szFullPath);
+		char LogFileName[1024];
+		snprintf(LogFileName, sizeof(LogFileName), "%s/PPPoE_帐号密码.txt", szFullPath);
 
-		char UserNameBuffer[1024] = {0};
-		sprintf_s(UserNameBuffer, sizeof(UserNameBuffer), "@echo 帐号: %s>> %s 2>nul",username,LogFileName);
-		system(UserNameBuffer);
-		char PassWordBuffer[1024] = {0};
-		sprintf_s(PassWordBuffer, sizeof(PassWordBuffer), "@echo 密码: %s>> %s 2>nul",password,LogFileName);
-		system(PassWordBuffer);
-		printf("记录到文件成功!\t");
+		FILE* f = fopen(LogFileName, "a");
+		if (f)
+		{
+			fprintf(f, "帐号: %s\n", username);
+			fprintf(f, "密码: %s\n", password);
+			fclose(f);
+			printf("记录到文件成功!\t");
+		}
+		else
+		{
+			fprintf(stderr, "无法写入文件: %s\n", LogFileName);
+		}
 	}
 }
 
 // 获取键盘输入,得到选择的网卡号码
 bool GetDeviceToUse(int& DeviceNbr)
 {
-	HANDLE hStdin;    
-	DWORD cNumRead, fdwMode, fdwSaveOldMode,j; 
-	INPUT_RECORD irInBuf[128]; 
+#ifdef _WIN32
+	HANDLE hStdin;
+	DWORD cNumRead, fdwMode, fdwSaveOldMode,j;
+	INPUT_RECORD irInBuf[128];
 	bool bReadFinish = false;
-	
-	hStdin = GetStdHandle(STD_INPUT_HANDLE); 
+
+	hStdin = GetStdHandle(STD_INPUT_HANDLE);
 	if (hStdin == INVALID_HANDLE_VALUE)
 	{
 		printf("\n获取控制台句柄错误\n");
 		return bReadFinish;
 	}
-	if (! GetConsoleMode(hStdin, &fdwSaveOldMode) ) 
+	if (! GetConsoleMode(hStdin, &fdwSaveOldMode) )
 	{
 		printf("\n获取控制台输入模式错误\n");
 		return bReadFinish;
 	}
-	
+
 	fdwMode = ENABLE_WINDOW_INPUT;// | ENABLE_MOUSE_INPUT; 
-	if (! SetConsoleMode(hStdin, fdwMode) ) 
+	if (! SetConsoleMode(hStdin, fdwMode) )
 	{
 		printf("\n设置控制台输入模式错误\n");
 		return bReadFinish;
 	}
-	while (1) 
+	while (1)
 	{
-		if (! ReadConsoleInput( 
+		if (! ReadConsoleInput(
 			hStdin,      // input buffer handle 
 			irInBuf,     // buffer to read into 
 			128,         // size of read buffer 
 			&cNumRead) ) // number of records read 
 		{
+			SetConsoleMode(hStdin, fdwSaveOldMode);
 			return bReadFinish;
 		}
-		for (j = 0; j < cNumRead; j++) 
+		for (j = 0; j < cNumRead; j++)
 		{
-			switch(irInBuf[j].EventType) 
-			{ 
+			switch(irInBuf[j].EventType)
+			{
 			case KEY_EVENT: // keyboard input 
 				{
 					if (irInBuf[j].Event.KeyEvent.bKeyDown)
@@ -1065,7 +1213,7 @@ bool GetDeviceToUse(int& DeviceNbr)
 				}
 				break;
 			default:
-				break; 
+				break;
 			}
 		}
 		if (bReadFinish)
@@ -1073,17 +1221,33 @@ bool GetDeviceToUse(int& DeviceNbr)
 			break;
 		}
 	}
-	if (! SetConsoleMode(hStdin, fdwSaveOldMode) ) 
+	if (! SetConsoleMode(hStdin, fdwSaveOldMode) )
 	{
 		printf("\n设置控制台输入模式错误\n");
 		return bReadFinish;
 	}
 	return bReadFinish;
+#else
+	// Linux: 使用标准 scanf
+	int val;
+	if (scanf("%d", &val) == 1 && val >= 0 && val <= 255)
+	{
+		DeviceNbr = val;
+		printf("你选了<%d>号网卡\n", DeviceNbr);
+		return true;
+	}
+	return false;
+#endif
 }
 
 // 等待退出
 void wait2exit()
 {
 	WriteInfoToFile();
+#ifdef _WIN32
 	system("pause");
+#else
+	fprintf(stderr, "\n按 Enter 键退出...");
+	getchar();
+#endif
 }
