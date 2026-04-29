@@ -2,16 +2,18 @@ name: Build
 
 on:
   push:
-    branches: [master, main]
+    branches: [master, main, linux]
     tags: ['v*']
   pull_request:
     branches: [master, main]
 
 env:
   PROJECT_NAME: PPPOE
+  OPENWRT_VERSION: 24.10.6
+  OPENWRT_GCC: gcc-13.3.0_musl
 
 jobs:
-  build:
+  build-windows:
     runs-on: windows-latest
 
     strategy:
@@ -21,7 +23,6 @@ jobs:
             msbuild_platform: Win32
           - platform: x64
             msbuild_platform: x64
-        configuration: [Release]
       fail-fast: false
 
     steps:
@@ -34,18 +35,97 @@ jobs:
       - name: Build
         run: |
           msbuild ${{ env.PROJECT_NAME }}.vcxproj `
-            /p:Configuration=${{ matrix.configuration }} `
+            /p:Configuration=Release `
             /p:Platform=${{ matrix.msbuild_platform }} `
             /m
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.PROJECT_NAME }}-${{ matrix.platform }}
-          path: build/${{ matrix.platform }}/${{ matrix.configuration }}/${{ env.PROJECT_NAME }}.exe
+          name: ${{ env.PROJECT_NAME }}-win-${{ matrix.platform }}
+          path: build/${{ matrix.platform }}/Release/${{ env.PROJECT_NAME }}.exe
+
+  build-linux:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y libpcap-dev
+
+      - name: Build (CMake)
+        run: |
+          mkdir -p build/linux
+          cd build/linux
+          cmake ../..
+          make
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PROJECT_NAME }}-linux-x86_64
+          path: build/linux/${{ env.PROJECT_NAME }}
+
+  build-openwrt:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # Add/modify targets here when upgrading SDK version.
+        # download_path: URL path on downloads.openwrt.org (with trailing slash)
+        # sdk_target:    SDK filename target component (e.g., x86-64, mediatek-mt7622)
+        include:
+          - target: x86/64
+            download_path: x86/64/
+            sdk_target: x86-64
+            artifact_name: x86_64
+          - target: mediatek/filogic
+            download_path: mediatek/filogic/
+            sdk_target: mediatek-filogic
+            artifact_name: filogic
+      fail-fast: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y zstd
+
+      - name: Download and extract SDK
+        env:
+          SDK_VERSION: ${{ env.OPENWRT_VERSION }}
+          SDK_GCC: ${{ env.OPENWRT_GCC }}
+        run: |
+          cd /tmp
+          SDK_URL="https://downloads.openwrt.org/releases/${SDK_VERSION}/targets/${{ matrix.download_path }}openwrt-sdk-${SDK_VERSION}-${{ matrix.sdk_target }}_${SDK_GCC}.Linux-x86_64.tar.zst"
+          echo "Downloading SDK from: $SDK_URL"
+          wget -qO sdk.tar.zst "$SDK_URL"
+          tar --zstd -xf sdk.tar.zst
+          mv openwrt-sdk-* /opt/openwrt-sdk
+
+      - name: Prepare OpenWrt package
+        run: |
+          PKG_DIR=/opt/openwrt-sdk/package/pppoe_sniffer
+          mkdir -p "$PKG_DIR"
+          cp openwrt/Makefile common.h common.cpp pppoe.cpp "$PKG_DIR/"
+
+      - name: Build OpenWrt package
+        run: |
+          cd /opt/openwrt-sdk
+          echo "CONFIG_PACKAGE_pppoe_sniffer=m" >> .config
+          make defconfig
+          make package/pppoe_sniffer/compile V=s
+
+      - name: Upload ipk artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PROJECT_NAME }}-openwrt-${{ matrix.artifact_name }}
+          path: /opt/openwrt-sdk/bin/packages/*/base/pppoe_sniffer*.ipk
 
   release:
-    needs: build
+    needs: [build-windows, build-linux, build-openwrt]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
@@ -56,9 +136,26 @@ jobs:
 
       - name: Create release
         run: |
-          for dir in ${{ env.PROJECT_NAME }}-*; do
-            zip -j "${dir}-${{ github.ref_name }}.zip" "${dir}/${{ env.PROJECT_NAME }}.exe"
+          # Windows x86
+          zip -j "${{ env.PROJECT_NAME }}-win-x86-${{ github.ref_name }}.zip" \
+            "${{ env.PROJECT_NAME }}-win-x86/${{ env.PROJECT_NAME }}.exe"
+
+          # Windows x64
+          zip -j "${{ env.PROJECT_NAME }}-win-x64-${{ github.ref_name }}.zip" \
+            "${{ env.PROJECT_NAME }}-win-x64/${{ env.PROJECT_NAME }}.exe"
+
+          # Linux
+          zip -j "${{ env.PROJECT_NAME }}-linux-x86_64-${{ github.ref_name }}.zip" \
+            "${{ env.PROJECT_NAME }}-linux-x86_64/${{ env.PROJECT_NAME }}"
+
+          # OpenWrt ipk packages
+          set +e
+          for dir in ${{ env.PROJECT_NAME }}-openwrt-*/; do
+            target=$(echo "$dir" | sed 's/.*openwrt-//' | tr -d '/')
+            cp "$dir"/*.ipk "${{ env.PROJECT_NAME }}-openwrt-${target}-${{ github.ref_name }}.ipk" 2>/dev/null
           done
-          gh release create ${{ github.ref_name }} *.zip --generate-notes
+          set -e
+
+          gh release create ${{ github.ref_name }} *.zip *.ipk --generate-notes
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
