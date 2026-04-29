@@ -1,22 +1,41 @@
-﻿// 定义测试使用的MAC
+// 定义测试使用的MAC
 #ifndef _COMMON_
 #define _COMMON_
 
 #define VERSION "1.4"
 
-#define TEST_MAC
-
-#include <iostream>
-#include <string>
-#include <vector>
-#include <pcap.h>
-
+#ifdef _WIN32
+#define _CRT_SECURE_NO_WARNINGS
 #include <winsock2.h>
 #include <Iphlpapi.h>
+#include <windows.h>
 #pragma comment(lib, "wpcap.lib")
 #pragma comment(lib, "Packet.lib")
 #pragma comment(lib, "ws2_32.lib")
 #pragma comment(lib, "Iphlpapi.lib")
+#else
+#include <unistd.h>
+#include <string.h>
+#include <strings.h>
+#include <sys/ioctl.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <dirent.h>
+#include <fcntl.h>
+#include <net/if.h>
+#include <net/if_arp.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <limits.h>
+#endif
+
+#include <iostream>
+#include <string>
+#include <vector>
+#include <cstdio>
+#include <cstring>
+#include <pcap.h>
+
 using namespace std;
 
 #ifndef ETHERTYPE_PPPOED
@@ -57,7 +76,7 @@ enum PPPOE_TAGS {
 	RELAY_SESSION_ID	= 0x0110,
 	SERVICE_NAME_ERROR	= 0x0201,
 	AC_SYSTEM_ERROR		= 0x0202,
-	GENERIC_ERROR		= 0x0203 
+	GENERIC_ERROR		= 0x0203
 };
 
 enum PPP_STATUS {
