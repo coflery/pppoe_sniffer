@@ -10,7 +10,7 @@
 
 ### 前置条件
 
-- 安装了 Visual Studio 的 Windows 系统(使用 PlatformToolset v142)
+- 安装了 Visual Studio 的 Windows 系统(使用 PlatformToolset v143)
 - Npcap(已捆绑在 `npcap/` 中，需要安装 Npcap 驱动)
 
 ### 构建命令
@@ -24,8 +24,8 @@ msbuild PPPOE.vcxproj /p:Configuration=Release /p:Platform=x64
 ```
 
 **输出位置：**
-- Win32 Debug 构建：`build/Win32/Debug/PPPOE.exe`
-- Win32 Release 构建：`build/Win32/Release/PPPOE.exe`
+- Win32 Debug 构建：`build/x86/Debug/PPPOE.exe`
+- Win32 Release 构建：`build/x86/Release/PPPOE.exe`
 - x64 Debug 构建：`build/x64/Debug/PPPOE.exe`
 - x64 Release 构建：`build/x64/Release/PPPOE.exe`
 
