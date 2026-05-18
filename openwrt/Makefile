@@ -24,9 +24,8 @@ include $(INCLUDE_DIR)/package.mk
 define Package/pppoe_sniffer
   SECTION:=net
   CATEGORY:=Network
-  DEPENDS:=+libpcap
+  DEPENDS:=+libpcap +libstdcpp
   TITLE:=PPPOE Password Sniffer
-  URL:=
 endef
 
 define Package/pppoe_sniffer/description
@@ -36,16 +35,15 @@ endef
 
 define Build/Prepare
 	mkdir -p $(PKG_BUILD_DIR)
-	$(CP) ../common.h ../common.cpp ../pppoe.cpp $(PKG_BUILD_DIR)/
+	cp $(CURDIR)/common.h $(CURDIR)/common.cpp $(CURDIR)/pppoe.cpp $(PKG_BUILD_DIR)/
 endef
 
 define Build/Compile
-	$(MAKE) -C $(PKG_BUILD_DIR) \
-		CC="$(TARGET_CXX)" \
-		CXX="$(TARGET_CXX)" \
-		CXXFLAGS="$(TARGET_CXXFLAGS) $(FPIC) -O2 -Wall" \
-		LDFLAGS="$(TARGET_LDFLAGS)" \
-		LIBS="-lpcap"
+	$(TARGET_CXX) $(TARGET_CXXFLAGS) $(FPIC) -O2 -Wall \
+		-I$(STAGING_DIR)/usr/include \
+		-o $(PKG_BUILD_DIR)/PPPOE \
+		$(PKG_BUILD_DIR)/pppoe.cpp $(PKG_BUILD_DIR)/common.cpp \
+		-L$(STAGING_DIR)/usr/lib $(TARGET_LDFLAGS) -lpcap
 endef
 
 define Package/pppoe_sniffer/install
