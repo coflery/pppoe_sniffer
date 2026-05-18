@@ -1136,7 +1136,7 @@ void WriteInfoToFile()
 		GetExeDir(szFullPath, sizeof(szFullPath));
 
 		char LogFileName[1024];
-		snprintf(LogFileName, sizeof(LogFileName), "%s/PPPoE_帐号密码.txt", szFullPath);
+		snprintf(LogFileName, sizeof(LogFileName), "%s/PPPoE.txt", szFullPath);
 
 		FILE* f = fopen(LogFileName, "a");
 		if (f)
