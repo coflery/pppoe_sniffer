@@ -283,12 +283,11 @@ bool GetLoaclMac(int& idx, const char* adapterName)
 			if (entry->d_name[0] == '.')
 				continue;
 
-			// 检查是否是虚拟网卡 (跳过 lo, docker, veth, br 等)
+			// 检查是否是虚拟网卡 (跳过 lo, docker, veth 等)
 			const char* name = entry->d_name;
 			if (strncmp(name, "lo", 2) == 0 ||
 				strncmp(name, "docker", 6) == 0 ||
 				strncmp(name, "veth", 4) == 0 ||
-				strncmp(name, "br-", 3) == 0 ||
 				strncmp(name, "vir", 3) == 0 ||
 				strncmp(name, "tap", 3) == 0)
 			{
