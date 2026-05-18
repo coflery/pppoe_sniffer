@@ -128,7 +128,7 @@ int main(int argc, char **argv)
 		//scanf("%d", &inum);
 
 		// 跳转到所选适配器
-		for(d=alldevs, i=1; ; d=d->next, i++)
+		for(d=alldevs, i=1; d; d=d->next, i++)
 		{
 #ifdef _WIN32
 			if (d->description && strcmp(d->description,"Adapter for generic dialup and VPN capture") == 0)
@@ -143,7 +143,7 @@ int main(int argc, char **argv)
 			}
 		}
 
-		if(inum < 1 || inum > static_cast<int>(i))
+		if(d == NULL || inum < 1 || inum > static_cast<int>(i))
 		{
 			inum = (i>1)?0:1;
 			GetLoaclMac(inum, NULL);
@@ -153,6 +153,15 @@ int main(int argc, char **argv)
 		{
 			GetLoaclMac(inum, d->name);
 		}
+
+		if (d == NULL)
+		{
+			fprintf(stderr,"\n无法找到所选网卡\n");
+			pcap_freealldevs(alldevs);
+			wait2exit();
+			return -1;
+		}
+
 		// 上来就选第二个
 		//d=alldevs->next;
 
@@ -189,7 +198,7 @@ int main(int argc, char **argv)
 		// 过滤封包,将直接丢弃不是PPPoE的封包
 		bpf_u_int32 netmask;
 		struct bpf_program fcode;
-		if (d->addresses != NULL)
+		if (d->addresses != NULL && d->addresses->netmask != NULL)
 		{
 #ifdef _WIN32
 			netmask=((struct sockaddr_in *)(d->addresses->netmask))->sin_addr.S_un.S_addr;
