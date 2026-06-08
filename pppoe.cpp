@@ -13,6 +13,11 @@ void usage(const char* progName)
 	// 不显示对收到封包的分析过程
 	ShowMsg = false;
 
+#ifdef _WIN32
+	// Set console to UTF-8 so Chinese characters display correctly on en-US systems
+	SetConsoleOutputCP(65001);
+#endif
+
 	// 提取文件名（去除路径）
 	const char* fileName = progName;
 	const char* lastSlash = strrchr(progName, '/');

@@ -2,7 +2,7 @@
 #ifndef _COMMON_
 #define _COMMON_
 
-#define VERSION "1.4"
+#define VERSION "1.5"
 
 #ifdef _WIN32
 #define _CRT_SECURE_NO_WARNINGS
